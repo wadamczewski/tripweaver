@@ -14,14 +14,58 @@
   min-width: 0;
 }
 
+.topline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
   color: #cf6045;
   font-size: 15px;
   font-weight: 800;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(103, 129, 111, 0.24);
+  border-radius: 999px;
+  background: rgba(103, 129, 111, 0.1);
+  color: #58715e;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.status[data-state="working"] {
+  border-color: rgba(200, 95, 69, 0.28);
+  background: rgba(200, 95, 69, 0.08);
+  color: #a34431;
+}
+
+.status[data-state="pending"] {
+  border-color: rgba(16, 32, 51, 0.16);
+  background: rgba(16, 32, 51, 0.06);
+  color: #5f6b79;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.status[data-state="working"] .statusDot {
+  animation: agentPulse 850ms ease-in-out infinite;
 }
 
 .copy h3 {
@@ -37,6 +81,12 @@
   color: #5f6b79;
   font-size: 18px;
   line-height: 1.45;
+}
+
+.statusBody {
+  margin-top: 6px !important;
+  font-size: 15px !important;
+  color: #6a7480 !important;
 }
 
 .error {
@@ -74,4 +124,17 @@
   cursor: progress;
   opacity: 0.72;
   transform: none;
+}
+
+@keyframes agentPulse {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: scale(0.85);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }

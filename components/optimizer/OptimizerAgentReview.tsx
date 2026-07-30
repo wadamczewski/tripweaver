@@ -41,6 +41,12 @@ export function OptimizerAgentReview({
   const [error, setError] = useState<string | undefined>();
   const currentWeights = useMemo(() => stableJson(weights), [weights]);
   const hasChanges = currentWeights !== reviewedWeights;
+  const statusLabel = isReviewing ? "Agent working" : hasChanges ? "Changes pending" : "Agent complete";
+  const statusBody = isReviewing
+    ? "Reviewing the current results with updated optimizer settings."
+    : hasChanges
+      ? "Optimizer settings changed. Rerun the agent for a fresh ranking."
+      : "Spawned after search and ranked the current result set.";
 
   async function requestReview() {
     setIsReviewing(true);
@@ -76,12 +82,19 @@ export function OptimizerAgentReview({
   return (
     <section className={styles.review} aria-live="polite">
       <div className={styles.copy}>
-        <div className={styles.eyebrow}>
-          <Sparkles size={18} aria-hidden="true" />
-          Trip Optimizer agent
+        <div className={styles.topline}>
+          <div className={styles.eyebrow}>
+            <Sparkles size={18} aria-hidden="true" />
+            Trip Optimizer agent
+          </div>
+          <div className={styles.status} data-state={isReviewing ? "working" : hasChanges ? "pending" : "complete"}>
+            <span className={styles.statusDot} aria-hidden="true" />
+            {statusLabel}
+          </div>
         </div>
         <h3>{review.headline}</h3>
         <p>{review.summary}</p>
+        <p className={styles.statusBody}>{statusBody}</p>
         {error ? <p className={styles.error}>{error}</p> : null}
       </div>
 
