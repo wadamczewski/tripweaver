@@ -2,15 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  CalendarDays,
   Compass,
-  Loader2
+  Loader2,
+  Pencil,
+  Users,
+  WalletCards
 } from "lucide-react";
 import { SearchPanel } from "@/components/search/SearchPanel";
 import { OptimizerPanel } from "@/components/optimizer/OptimizerPanel";
 import { TripSummaryRail } from "@/components/optimizer/TripSummaryRail";
 import { ResultsTabs } from "@/components/results/ResultsTabs";
 import { OptimizerAgentReview } from "@/components/optimizer/OptimizerAgentReview";
-import { DEFAULT_SEARCH, DEFAULT_WEIGHTS } from "@/lib/defaults";
+import { formatMoney } from "@/lib/currency";
+import { DEFAULT_SEARCH, DEFAULT_WEIGHTS, summarizeTravelers } from "@/lib/defaults";
 import { scoreTripOptions } from "@/lib/scoring";
 import { toTripSearchCriteria, toRealWeights } from "@/lib/adapters/criteria";
 import { toSearchResults } from "@/lib/adapters/results";
@@ -26,40 +31,22 @@ import { validateSearchCriteria } from "@/lib/validation";
 
 type SearchState = "idle" | "loading" | "ready" | "error";
 
-const DESTINATION_IMAGES: Array<{ keys: string[]; url: string }> = [
-  {
-    keys: ["barcelona", "spain", "catalonia"],
-    url: "https://images.unsplash.com/photo-1583422409516-2895a77efded?auto=format&fit=crop&w=2200&q=85"
-  },
-  {
-    keys: ["paris", "france"],
-    url: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=2200&q=85"
-  },
-  {
-    keys: ["rome", "italy"],
-    url: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=2200&q=85"
-  },
-  {
-    keys: ["london", "england", "uk", "united kingdom"],
-    url: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=2200&q=85"
-  },
-  {
-    keys: ["berlin", "germany"],
-    url: "https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=2200&q=85"
-  },
-  {
-    keys: ["lisbon", "portugal"],
-    url: "https://images.unsplash.com/photo-1500759285222-a95626b934cb?auto=format&fit=crop&w=2200&q=85"
+function hashString(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
   }
-];
+  return Math.abs(hash);
+}
 
+// Real, keyword-matched photos for any destination the user types, via LoremFlickr's
+// public tag-search endpoint. `lock` pins a specific matching photo per destination so
+// it stays stable across re-renders instead of swapping on every request.
 function getDestinationImage(destination: string): string {
-  const normalizedDestination = destination.trim().toLowerCase();
-  const match = DESTINATION_IMAGES.find((image) =>
-    image.keys.some((key) => normalizedDestination.includes(key))
-  );
-
-  return match?.url ?? "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2200&q=85";
+  const query = destination.trim() || "travel destination";
+  const lock = hashString(query.toLowerCase()) % 100000;
+  return `https://loremflickr.com/1600/900/${encodeURIComponent(query)},travel,landmark?lock=${lock}`;
 }
 
 export default function Home() {
@@ -71,6 +58,7 @@ export default function Home() {
   const [errors, setErrors] = useState<string[]>([]);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [savedTrips, setSavedTrips] = useState<TripOption[]>([]);
+  const [isEditingSearch, setIsEditingSearch] = useState(false);
 
   useEffect(() => {
     setSavedTrips(loadSavedTrips());
@@ -90,6 +78,7 @@ export default function Home() {
   const featuredTrip = scoredResults?.tripOptions[0];
   const comparedTrips = scoredResults?.tripOptions.filter((trip) => compareIds.includes(trip.id)) ?? [];
   const destinationImage = useMemo(() => getDestinationImage(criteria.destination), [criteria.destination]);
+  const showSearchWizard = status !== "ready" || isEditingSearch;
 
   async function handleSearch(nextCriteria: SearchCriteria) {
     const validationErrors = validateSearchCriteria(nextCriteria);
@@ -121,6 +110,7 @@ export default function Home() {
       setRealResults(nextRealResults);
       setResults(nextResults);
       setStatus("ready");
+      setIsEditingSearch(false);
       setCompareIds(nextResults.tripOptions.slice(0, 2).map((trip) => trip.id));
     } catch {
       setStatus("error");
@@ -162,49 +152,57 @@ export default function Home() {
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f6f0e6]">
-      <section className="relative overflow-hidden bg-ink text-white">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=1800&q=80"
-            alt=""
-            className="h-full w-full object-cover opacity-38"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(16,32,51,0.96)_0%,rgba(16,32,51,0.82)_46%,rgba(16,32,51,0.42)_100%)]" />
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#f6f0e6] to-transparent" />
-        </div>
-
-        <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-ink shadow-soft">
-              <Compass className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xl font-semibold tracking-tight">TripWeaver</p>
-            </div>
-          </div>
-        </header>
-
-        <div className="relative z-10 mx-auto max-w-7xl px-4 pb-9 pt-2 sm:px-6 lg:px-8">
-          <div className="max-w-6xl">
-            <h1 className="max-w-6xl text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
-              Build the whole trip, one decision at a time.
-            </h1>
-            <p className="mt-4 max-w-5xl text-base leading-7 text-white/70 sm:text-lg">
-              TripWeaver guides families from route and rooms to budget, packages, and total trip value.
-            </p>
-          </div>
-
-          <div className="mt-6">
-            <SearchPanel
-              criteria={criteria}
-              errors={errors}
-              isLoading={status === "loading"}
-              onChange={setCriteria}
-              onSubmit={handleSearch}
+      {showSearchWizard ? (
+        <section className="relative overflow-hidden bg-ink text-white">
+          <div className="absolute inset-0">
+            <img
+              src={status === "idle" ? "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=1800&q=80" : destinationImage}
+              alt=""
+              className="h-full w-full object-cover opacity-38"
             />
+            <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(16,32,51,0.96)_0%,rgba(16,32,51,0.82)_46%,rgba(16,32,51,0.42)_100%)]" />
+            <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#f6f0e6] to-transparent" />
           </div>
-        </div>
-      </section>
+
+          <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-ink shadow-soft">
+                <Compass className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xl font-semibold tracking-tight">TripWeaver</p>
+              </div>
+            </div>
+          </header>
+
+          <div className="relative z-10 mx-auto max-w-7xl px-4 pb-9 pt-2 sm:px-6 lg:px-8">
+            <div className="max-w-6xl">
+              <h1 className="max-w-6xl text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+                Build the whole trip, one decision at a time.
+              </h1>
+              <p className="mt-4 max-w-5xl text-base leading-7 text-white/70 sm:text-lg">
+                TripWeaver guides families from route and rooms to budget, packages, and total trip value.
+              </p>
+            </div>
+
+            <div className="mt-6">
+              <SearchPanel
+                criteria={criteria}
+                errors={errors}
+                isLoading={status === "loading"}
+                onChange={setCriteria}
+                onSubmit={handleSearch}
+              />
+            </div>
+          </div>
+        </section>
+      ) : (
+        <SearchSummaryBar
+          criteria={criteria}
+          destinationImage={destinationImage}
+          onEdit={() => setIsEditingSearch(true)}
+        />
+      )}
 
       <section className={`relative overflow-hidden px-4 py-10 sm:px-6 lg:px-8 ${status === "ready" ? "min-h-screen bg-ink" : ""}`}>
         {status === "ready" ? (
@@ -215,25 +213,6 @@ export default function Home() {
         ) : null}
 
         <div className="relative z-10 mx-auto max-w-7xl">
-          {status === "idle" && (
-            <div className="grid gap-4 rounded-[30px] border border-line bg-white/80 p-5 shadow-soft backdrop-blur md:grid-cols-2 md:p-6">
-            {[
-              ["Berlin airport savings", "Compare Polish and German departures for the same family."],
-              ["Age-aware pricing", "The 14-year-old flows into airline, hotel, and package fare rules."],
-              ["Complete trip total", "Transport, stay, luggage, transfers, food, insurance, and fees."]
-            ].map(([title, detail], index) => (
-              <div
-                key={title}
-                className="animate-fade-up rounded-[24px] bg-[#fbf7ef] p-5 transition hover:-translate-y-0.5 hover:shadow-soft"
-                style={{ animationDelay: `${index * 80}ms` }}
-              >
-                <p className="text-sm font-semibold text-ink">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-ink/60">{detail}</p>
-              </div>
-            ))}
-            </div>
-          )}
-
           {status === "loading" && (
             <div className="flex min-h-[360px] animate-fade-in flex-col items-center justify-center rounded-[2rem] border border-line bg-white/70 p-10 text-center shadow-soft">
               <div className="relative grid h-16 w-16 place-items-center">
@@ -321,5 +300,60 @@ export default function Home() {
         </div>
       </section>
     </main>
+  );
+}
+
+function SearchSummaryBar({
+  criteria,
+  destinationImage,
+  onEdit
+}: {
+  criteria: SearchCriteria;
+  destinationImage: string;
+  onEdit: () => void;
+}) {
+  return (
+    <section className="relative overflow-hidden bg-ink text-white">
+      <div className="absolute inset-0">
+        <img src={destinationImage} alt="" className="h-full w-full object-cover opacity-45" />
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(16,32,51,0.95)_0%,rgba(16,32,51,0.86)_55%,rgba(16,32,51,0.55)_100%)]" />
+      </div>
+
+      <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-soft">
+            <Compass className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-semibold tracking-tight">
+              {criteria.origin} to {criteria.destination || "Anywhere"}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/70">
+              <span className="flex items-center gap-1.5">
+                <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                {criteria.departureDate} to {criteria.returnDate}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                {summarizeTravelers(criteria.travelers)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <WalletCards className="h-3.5 w-3.5" aria-hidden="true" />
+                {criteria.budget ? formatMoney(criteria.budget) : "No cap"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 px-5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/20"
+        >
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+          Edit search
+        </button>
+      </div>
+    </section>
   );
 }

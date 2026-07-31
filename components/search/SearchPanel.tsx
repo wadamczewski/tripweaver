@@ -5,11 +5,10 @@ import {
   ArrowLeft,
   ArrowRight,
   Bus,
+  Building2,
   CalendarDays,
   Car,
   Check,
-  CircleDollarSign,
-  Compass,
   Hotel,
   Luggage,
   MapPin,
@@ -20,6 +19,7 @@ import {
   Settings2,
   Ship,
   Sparkles,
+  Star,
   Train,
   WalletCards
 } from "lucide-react";
@@ -28,10 +28,11 @@ import { useMemo, useState } from "react";
 
 import { convertMoney, formatMoney } from "@/lib/currency";
 import { DEFAULT_TRANSPORT_MODES, summarizeTravelers } from "@/lib/defaults";
-import type { AccommodationStandard, Currency, PreferenceKey, SearchCriteria, TransportMode } from "@/lib/types";
+import type { Currency, PreferenceKey, SearchCriteria, TransportMode } from "@/lib/types";
 import { validateSearchCriteria } from "@/lib/validation";
 
 import { CityAutocomplete } from "@/components/ui/CityAutocomplete";
+import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Tooltip } from "@/components/ui/Tooltip";
 
 import { RoomAllocator } from "./RoomAllocator";
@@ -154,15 +155,15 @@ export function SearchPanel({
   function updateCurrency(currency: Currency): void {
     updateCriteria({
       currency,
-      budget: criteria.budget ? convertMoney(criteria.budget, currency) : undefined
+      budget: criteria.budget ? convertMoney(criteria.budget, currency) : undefined,
+      budgetMin: criteria.budgetMin ? convertMoney(criteria.budgetMin, currency) : undefined
     });
   }
 
-  function updateBudget(value: string): void {
-    const amount = Number(value);
-
+  function updateBudgetRange(min: number, max: number): void {
     updateCriteria({
-      budget: value.trim() === "" ? undefined : { amount: Number.isFinite(amount) ? amount : 0, currency: criteria.currency }
+      budgetMin: { amount: min, currency: criteria.currency },
+      budget: { amount: max, currency: criteria.currency }
     });
   }
 
@@ -193,15 +194,6 @@ export function SearchPanel({
     >
       <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)]">
         <aside className="bg-ink p-5 text-white lg:p-6">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/10 text-white ring-1 ring-white/15">
-              <Compass className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">TripWeaver</p>
-              <p className="text-xs text-white/52">{demoDataLabel}</p>
-            </div>
-          </div>
 
           <div className="mt-7 grid grid-cols-1 gap-2 sm:space-y-2">
             {wizardSteps.map((step, index) => {
@@ -236,32 +228,14 @@ export function SearchPanel({
               );
             })}
           </div>
-
-          <div className="mt-7 hidden rounded-3xl border border-white/10 bg-white/8 p-4 md:block">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/46">Trip brief</p>
-            <p className="mt-3 text-lg font-semibold leading-snug">
-              {criteria.origin} to {criteria.destination || "Anywhere"}
-            </p>
-            <div className="mt-4 space-y-3 text-sm text-white/64">
-              <BriefLine label="Dates" value={`${criteria.departureDate} to ${criteria.returnDate}`} />
-              <BriefLine label="Group" value={summarizeTravelers(criteria.travelers)} />
-              <BriefLine label="Budget" value={criteria.budget ? formatMoney(criteria.budget) : "No cap"} />
-            </div>
-          </div>
         </aside>
 
         <section className="min-w-0 bg-[#fbf7ef]">
           <div className="border-b border-line/80 px-5 py-5 sm:px-7">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div className="animate-fade-up" key={currentStep.id}>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-accentDark">{currentStep.eyebrow}</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-ink">{currentStep.title}</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#566273]">{currentStep.description}</p>
-              </div>
-              <div className="flex items-center gap-2 rounded-full border border-sage/20 bg-sage/10 px-3 py-2 text-sm font-semibold text-sageDark">
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Estimates update after search
-              </div>
+            <div className="animate-fade-up" key={currentStep.id}>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-accentDark">{currentStep.eyebrow}</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-ink">{currentStep.title}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#566273]">{currentStep.description}</p>
             </div>
           </div>
 
@@ -279,7 +253,7 @@ export function SearchPanel({
                 <PreferencesStep
                   criteria={criteria}
                   updateCriteria={updateCriteria}
-                  updateBudget={updateBudget}
+                  updateBudgetRange={updateBudgetRange}
                   updateCurrency={updateCurrency}
                   togglePreference={togglePreference}
                   toggleTransportMode={toggleTransportMode}
@@ -356,8 +330,7 @@ function RouteStep({
   updateCriteria: (patch: Partial<SearchCriteria>) => void;
 }) {
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
-      <div className="space-y-4">
+    <div className="space-y-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)]">
           <CityAutocomplete
             label="Departure city"
@@ -365,7 +338,11 @@ function RouteStep({
             onChange={(value) => updateCriteria({ origin: value })}
             placeholder="Szczecin"
           />
-          <div className="hidden items-end pb-3 md:flex">
+          <div className="hidden md:flex md:flex-col">
+            <span className="invisible mb-2 flex items-center gap-2 text-sm font-semibold" aria-hidden="true">
+              <MapPin className="h-4 w-4" />
+              Route
+            </span>
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-accent shadow-sm">
               <ArrowRight className="h-5 w-5" aria-hidden="true" />
             </div>
@@ -379,7 +356,7 @@ function RouteStep({
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-end">
           <TextField
             label="Departure date"
             icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
@@ -394,28 +371,21 @@ function RouteStep({
             value={criteria.returnDate}
             onChange={(value) => updateCriteria({ returnDate: value })}
           />
+          <div className="flex flex-col">
+            <span className="invisible mb-2 flex items-center gap-2 text-sm font-semibold" aria-hidden="true">
+              <CalendarDays className="h-4 w-4" />
+              Flexible
+            </span>
+            <SwitchTile
+              icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
+              label="Flexible dates"
+              helper="Check one or two nearby dates for visible savings"
+              checked={criteria.flexibleDates}
+              onChange={(checked) => updateCriteria({ flexibleDates: checked })}
+              compact
+            />
+          </div>
         </div>
-
-        <SwitchTile
-          icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
-          label="Flexible dates"
-          helper="Check one or two nearby dates for visible savings"
-          checked={criteria.flexibleDates}
-          onChange={(checked) => updateCriteria({ flexibleDates: checked })}
-        />
-      </div>
-
-      <div className="overflow-hidden rounded-[24px] bg-ink text-white shadow-soft">
-        <img
-          src="https://images.unsplash.com/photo-1583422409516-2895a77efded?auto=format&fit=crop&w=900&q=80"
-          alt=""
-          className="h-48 w-full object-cover opacity-90"
-        />
-        <div className="p-5">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/48">Default story</p>
-          <p className="mt-2 text-lg font-semibold">A family trip from Szczecin to Barcelona, with Berlin airport savings.</p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -450,30 +420,89 @@ function TravelersStep({
   );
 }
 
+const BUDGET_BOUNDS: Record<Currency, { max: number; step: number }> = {
+  PLN: { max: 20000, step: 100 },
+  EUR: { max: 5000, step: 50 }
+};
+
 function PreferencesStep({
   criteria,
   updateCriteria,
-  updateBudget,
+  updateBudgetRange,
   updateCurrency,
   toggleTransportMode,
   togglePreference
 }: {
   criteria: SearchCriteria;
   updateCriteria: (patch: Partial<SearchCriteria>) => void;
-  updateBudget: (value: string) => void;
+  updateBudgetRange: (min: number, max: number) => void;
   updateCurrency: (currency: Currency) => void;
   toggleTransportMode: (mode: TransportMode) => void;
   togglePreference: (preference: PreferenceKey) => void;
 }) {
+  const bounds = BUDGET_BOUNDS[criteria.currency] ?? BUDGET_BOUNDS.PLN;
+  const budgetMinAmount = criteria.budgetMin?.amount ?? 0;
+  const budgetMaxAmount = criteria.budget?.amount ?? bounds.max;
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="rounded-[24px] border-2 border-accent/20 bg-white p-4 shadow-soft sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-ink">
+            <WalletCards className="h-4 w-4 text-accent" aria-hidden="true" />
+            Budget range
+            <Tooltip text="Set a comfortable range. Options near the top of your range are still shown, but the lower end is called out as strong value." />
+          </div>
+          <div className="flex h-9 rounded-xl border border-line bg-[#fbf7ef] p-1">
+            {CURRENCIES.map((currency) => (
+              <button
+                type="button"
+                className={cn(
+                  "rounded-lg px-3 text-xs font-bold transition",
+                  criteria.currency === currency ? "bg-ink text-white shadow-sm" : "text-ink/65 hover:bg-white"
+                )}
+                aria-pressed={criteria.currency === currency}
+                onClick={() => updateCurrency(currency)}
+                key={currency}
+              >
+                {currency}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-center gap-3 text-2xl font-bold text-ink sm:text-3xl">
+          <span>{formatMoney({ amount: budgetMinAmount, currency: criteria.currency })}</span>
+          <span className="text-base font-semibold text-ink/35">to</span>
+          <span>{formatMoney({ amount: budgetMaxAmount, currency: criteria.currency })}</span>
+        </div>
+
+        <div className="mt-5 px-1">
+          <RangeSlider
+            min={0}
+            max={bounds.max}
+            step={bounds.step}
+            valueMin={budgetMinAmount}
+            valueMax={budgetMaxAmount}
+            onChangeMin={(value) => updateBudgetRange(value, budgetMaxAmount)}
+            onChangeMax={(value) => updateBudgetRange(budgetMinAmount, value)}
+            minLabel="Minimum budget"
+            maxLabel="Maximum budget"
+          />
+        </div>
+        <div className="mt-2 flex justify-between px-1 text-xs font-semibold text-ink/45">
+          <span>{formatMoney({ amount: 0, currency: criteria.currency })}</span>
+          <span>{formatMoney({ amount: bounds.max, currency: criteria.currency })}+</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-[24px] border border-line bg-white p-4 shadow-soft">
           <div className="mb-4 flex items-center gap-2 text-sm font-bold text-ink">
             <Plane className="h-4 w-4 text-accent" aria-hidden="true" />
             Preferred transport
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {TRANSPORT_OPTIONS.map((option) => {
               const isSelected = criteria.selectedTransportModes.includes(option.value);
 
@@ -503,49 +532,60 @@ function PreferencesStep({
           </div>
         </div>
 
-        <div className="space-y-3">
-          <label className="block rounded-[24px] border border-line bg-white p-4 text-sm font-semibold text-ink shadow-soft">
-            <span className="mb-2 flex items-center gap-2">
-              <WalletCards className="h-4 w-4 text-accent" aria-hidden="true" />
-              Maximum total budget
-            </span>
-            <input
-              className="h-12 w-full rounded-2xl border border-line bg-[#fbf7ef] px-3 text-sm text-ink shadow-sm transition placeholder:text-ink/35 focus:border-accent focus:bg-white focus:outline-none"
-              inputMode="numeric"
-              min={0}
-              type="number"
-              value={criteria.budget?.amount ?? ""}
-              onChange={(event) => updateBudget(event.target.value)}
-              placeholder="8000"
-            />
-          </label>
+        <div className="rounded-[24px] border border-line bg-white p-4 shadow-soft">
+          <div className="mb-4 flex items-center gap-2 text-sm font-bold text-ink">
+            <Hotel className="h-4 w-4 text-accent" aria-hidden="true" />
+            Accommodation standard
+          </div>
+          <div className="space-y-2">
+            {ACCOMMODATION_OPTIONS.map((option) => {
+              const isSelected = criteria.accommodationStandard === option.value;
+              const starCount = option.value.endsWith("-star") ? Number(option.value.split("-")[0]) : 0;
 
-          <div className="rounded-[24px] border border-line bg-white p-4 shadow-soft">
-            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
-              <CircleDollarSign className="h-4 w-4 text-accent" aria-hidden="true" />
-              Currency
-            </div>
-            <div className="grid h-12 grid-cols-2 rounded-2xl border border-line bg-[#fbf7ef] p-1">
-              {CURRENCIES.map((currency) => (
+              return (
                 <button
                   type="button"
+                  key={option.value}
+                  aria-pressed={isSelected}
+                  onClick={() => updateCriteria({ accommodationStandard: option.value })}
                   className={cn(
-                    "rounded-xl text-sm font-bold transition",
-                    criteria.currency === currency ? "bg-ink text-white shadow-sm" : "text-ink/65 hover:bg-white"
+                    "flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left transition",
+                    isSelected
+                      ? "border-ink bg-ink text-white shadow-soft"
+                      : "border-line bg-[#fbf7ef] text-ink hover:border-accent/50 hover:bg-white"
                   )}
-                  aria-pressed={criteria.currency === currency}
-                  onClick={() => updateCurrency(currency)}
-                  key={currency}
                 >
-                  {currency}
+                  <span className="flex items-center gap-2.5">
+                    {starCount > 0 ? (
+                      <span className="flex items-center gap-0.5">
+                        {Array.from({ length: starCount }).map((_, index) => (
+                          <Star
+                            key={index}
+                            className={cn("h-3.5 w-3.5", isSelected ? "fill-white text-white" : "fill-accent text-accent")}
+                            aria-hidden="true"
+                          />
+                        ))}
+                      </span>
+                    ) : (
+                      <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg", isSelected ? "bg-white/14" : "bg-white")}>
+                        {option.value === "apartment" ? (
+                          <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                      </span>
+                    )}
+                    <span className="text-sm font-bold">{option.label}</span>
+                  </span>
+                  {isSelected ? <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <SwitchTile
           icon={<Luggage className="h-4 w-4" aria-hidden="true" />}
           label="Checked luggage"
@@ -560,23 +600,6 @@ function PreferencesStep({
           checked={criteria.packageHolidaysEnabled}
           onChange={(checked) => updateCriteria({ packageHolidaysEnabled: checked })}
         />
-        <label className="block rounded-[24px] border border-line bg-white p-4 text-sm font-semibold text-ink shadow-soft">
-          <span className="mb-2 flex items-center gap-2">
-            <Hotel className="h-4 w-4 text-accent" aria-hidden="true" />
-            Accommodation standard
-          </span>
-          <select
-            className="h-12 w-full rounded-2xl border border-line bg-[#fbf7ef] px-3 text-sm text-ink shadow-sm transition focus:border-accent focus:bg-white focus:outline-none"
-            value={criteria.accommodationStandard}
-            onChange={(event) => updateCriteria({ accommodationStandard: event.target.value as AccommodationStandard })}
-          >
-            {ACCOMMODATION_OPTIONS.map((option) => (
-              <option value={option.value} key={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
       <section className="rounded-[24px] border border-line bg-white p-4 shadow-soft">
@@ -619,45 +642,24 @@ function ReviewStep({ criteria, errors }: { criteria: SearchCriteria; errors: st
   const rooms = criteria.rooms.length;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
-      <div className="rounded-[26px] border border-line bg-white p-5 shadow-soft">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accentDark">Search summary</p>
-        <h3 className="mt-2 text-3xl font-semibold tracking-tight text-ink">
-          {criteria.origin} to {criteria.destination || "Anywhere"}
-        </h3>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <ReviewTile label="Dates" value={`${criteria.departureDate} to ${criteria.returnDate}`} />
-          <ReviewTile label="Travelers" value={summarizeTravelers(criteria.travelers)} />
-          <ReviewTile label="Rooms" value={`${rooms} room${rooms === 1 ? "" : "s"} configured`} />
-          <ReviewTile label="Budget" value={criteria.budget ? formatMoney(criteria.budget) : "No cap"} />
-          <ReviewTile label="Transport" value={criteria.selectedTransportModes.join(", ")} />
-          <ReviewTile label="Packages" value={criteria.packageHolidaysEnabled ? "Included" : "Skipped"} />
-        </div>
+    <div className="rounded-[26px] border border-line bg-white p-5 shadow-soft">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-accentDark">Search summary</p>
+      <h3 className="mt-2 text-3xl font-semibold tracking-tight text-ink">
+        {criteria.origin} to {criteria.destination || "Anywhere"}
+      </h3>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <ReviewTile label="Dates" value={`${criteria.departureDate} to ${criteria.returnDate}`} />
+        <ReviewTile label="Travelers" value={summarizeTravelers(criteria.travelers)} />
+        <ReviewTile label="Rooms" value={`${rooms} room${rooms === 1 ? "" : "s"} configured`} />
+        <ReviewTile label="Budget" value={criteria.budget ? formatMoney(criteria.budget) : "No cap"} />
+        <ReviewTile label="Transport" value={criteria.selectedTransportModes.join(", ")} />
+        <ReviewTile label="Packages" value={criteria.packageHolidaysEnabled ? "Included" : "Skipped"} />
       </div>
-
-      <div className="rounded-[26px] border border-line bg-ink p-5 text-white shadow-soft">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/46">What happens next</p>
-        <div className="mt-4 space-y-4">
-          {[
-            "Provider adapters price every traveler.",
-            "Stay providers check room occupancy and teen rules.",
-            "Package offers are normalized against separate booking.",
-            "The optimizer ranks cheapest, fastest, package, and best overall."
-          ].map((item) => (
-            <div key={item} className="flex gap-3 text-sm leading-6 text-white/72">
-              <span className="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sage text-white">
-                <Check className="h-3 w-3" aria-hidden="true" />
-              </span>
-              {item}
-            </div>
-          ))}
+      {errors.length > 0 ? (
+        <div className="mt-5 rounded-2xl border border-accent/25 bg-accent/5 p-3 text-sm text-accentDark">
+          {errors.length} detail{errors.length === 1 ? "" : "s"} need attention before searching.
         </div>
-        {errors.length > 0 ? (
-          <div className="mt-5 rounded-2xl bg-white/10 p-3 text-sm text-white/72">
-            {errors.length} detail{errors.length === 1 ? "" : "s"} need attention before searching.
-          </div>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -699,13 +701,15 @@ function SwitchTile({
   label,
   helper,
   checked,
-  onChange
+  onChange,
+  compact = false
 }: {
   icon: ReactNode;
   label: string;
   helper: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  compact?: boolean;
 }) {
   return (
     <div
@@ -713,7 +717,8 @@ function SwitchTile({
       aria-checked={checked}
       tabIndex={0}
       className={cn(
-        "flex min-h-16 min-w-0 cursor-pointer items-center justify-between gap-3 rounded-[24px] border px-4 py-3 text-left shadow-soft transition hover:shadow-lift",
+        "flex min-w-0 cursor-pointer items-center justify-between gap-3 rounded-2xl border text-left shadow-soft transition hover:shadow-lift",
+        compact ? "h-12 px-3" : "min-h-16 px-4 py-3",
         checked ? "border-sage/40 bg-white" : "border-line bg-white hover:border-accent/50"
       )}
       onClick={() => onChange(!checked)}
@@ -724,17 +729,18 @@ function SwitchTile({
         }
       }}
     >
-      <span className="flex min-w-0 items-center gap-3">
+      <span className="flex min-w-0 items-center gap-2.5">
         <span
           className={cn(
-            "grid h-10 w-10 shrink-0 place-items-center rounded-2xl transition-colors",
+            "grid shrink-0 place-items-center rounded-xl transition-colors",
+            compact ? "h-7 w-7" : "h-10 w-10 rounded-2xl",
             checked ? "bg-sage text-white" : "bg-[#fbf7ef] text-accent"
           )}
         >
           {icon}
         </span>
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="block text-sm font-bold text-ink">{label}</span>
+          <span className="block truncate text-sm font-bold text-ink">{label}</span>
           <Tooltip text={helper} />
         </span>
       </span>
@@ -753,19 +759,10 @@ function SwitchTrack({ checked }: { checked: boolean }) {
   );
 }
 
-function BriefLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/36">{label}</p>
-      <p className="mt-1 text-white/82">{value}</p>
-    </div>
-  );
-}
-
 function ReviewTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-line bg-[#fbf7ef] p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink/42">{label}</p>
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink/65">{label}</p>
       <p className="mt-2 text-sm font-semibold text-ink">{value}</p>
     </div>
   );

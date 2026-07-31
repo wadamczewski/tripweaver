@@ -146,7 +146,7 @@ export function PackageHolidayList({
 
               <aside className="flex flex-col justify-between border-t border-line bg-mist p-5 lg:min-w-[13rem] lg:border-l lg:border-t-0 lg:text-right">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/45">{estimateLabel}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/62">{estimateLabel}</p>
                   <p className="mt-2 text-2xl font-bold text-ink">{formatMoney(option.totalPrice)}</p>
                   <p className="mt-1 text-sm text-ink/60">
                     {option.durationNights} nights | child discount {formatMoney(option.childDiscount)}
@@ -227,7 +227,7 @@ export function PackageHolidayList({
                     ) : (
                       <button
                         type="button"
-                        className="mt-3 inline-flex w-full cursor-not-allowed items-center justify-between rounded-md border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink/40"
+                        className="mt-3 inline-flex w-full cursor-not-allowed items-center justify-between rounded-md border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink/60"
                         disabled
                       >
                         Open at provider
@@ -256,7 +256,7 @@ function PackageMetric({
 }) {
   return (
     <div className="rounded-md border border-line bg-paper/70 p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink/60">
         <Icon className="h-4 w-4 text-accent" aria-hidden="true" />
         {label}
       </div>
@@ -268,7 +268,7 @@ function PackageMetric({
 function DetailPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-paper p-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/60">{label}</p>
       <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
     </div>
   );

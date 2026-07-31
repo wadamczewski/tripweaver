@@ -98,6 +98,10 @@ export const DEFAULT_SEARCH: SearchCriteria = {
     amount: 8000,
     currency: "PLN"
   },
+  budgetMin: {
+    amount: 4000,
+    currency: "PLN"
+  },
   flexibleDates: true,
   checkedLuggage: true,
   selectedTransportModes: DEFAULT_TRANSPORT_MODES,

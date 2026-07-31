@@ -155,7 +155,7 @@ export function TripOptionCard({
 
         <aside className="flex min-w-[15rem] flex-col justify-between rounded-lg bg-mist p-4 lg:items-end">
           <div className="w-full lg:text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/45">{estimateLabel}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/62">{estimateLabel}</p>
             <p className="mt-2 text-3xl font-bold tracking-normal text-ink">{formatMoney(option.totalPrice)}</p>
             <p className="mt-1 text-sm font-medium text-ink/60">{formatMoney(option.pricePerPerson)} per person</p>
           </div>
@@ -209,7 +209,7 @@ export function TripOptionCard({
               <h3 className="text-sm font-semibold text-ink">Stay and room allocation</h3>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <div className="rounded-md bg-paper p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/40">Accommodation</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/60">Accommodation</p>
                   <p className="mt-1 text-sm font-semibold text-ink">{option.accommodation.name}</p>
                   <p className="mt-1 text-sm text-ink/60">
                     {option.accommodation.location} | {option.accommodation.nights} nights |{" "}
@@ -217,7 +217,7 @@ export function TripOptionCard({
                   </p>
                 </div>
                 <div className="rounded-md bg-paper p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/40">Room plan</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/60">Room plan</p>
                   <p className="mt-1 text-sm font-semibold text-ink">{getRoomSummary(option.roomAllocation)}</p>
                   <p className="mt-1 text-sm text-ink/60">
                     {option.accommodation.occupancyExplanation ?? option.accommodation.childPolicy ?? "Age-aware occupancy estimate"}
@@ -269,7 +269,7 @@ export function TripOptionCard({
                 ) : (
                   <button
                     type="button"
-                    className="inline-flex cursor-not-allowed items-center justify-between rounded-md border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink/40"
+                    className="inline-flex cursor-not-allowed items-center justify-between rounded-md border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink/60"
                     disabled
                   >
                     Open at provider
@@ -296,7 +296,7 @@ function TripStat({
 }) {
   return (
     <div className="rounded-md border border-line bg-paper/70 p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink/60">
         <Icon className="h-4 w-4 text-accent" aria-hidden="true" />
         {label}
       </div>
@@ -308,7 +308,7 @@ function TripStat({
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-white/70 px-2 py-2">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/60">{label}</p>
       <p className="mt-1 truncate text-sm font-bold text-ink">{value}</p>
     </div>
   );
@@ -329,7 +329,7 @@ function DetailLine({
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/60">{label}</p>
         <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
       </div>
     </div>

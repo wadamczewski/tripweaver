@@ -93,7 +93,7 @@ export function Timeline({
 
       {segments.length > 0 ? (
         <div className="mt-2 border-t border-line pt-4">
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-ink/45">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-ink/62">
             Transport segments
           </h4>
           <div className="grid gap-3">

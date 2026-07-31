@@ -60,6 +60,7 @@ export type SearchCriteria = {
   travelers: TravelerGroup;
   rooms: RoomOccupancy[];
   budget?: Money;
+  budgetMin?: Money;
   flexibleDates: boolean;
   checkedLuggage: boolean;
   selectedTransportModes: TransportMode[];

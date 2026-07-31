@@ -241,7 +241,7 @@ export function ResultsTabs({
                 className="animate-fade-up rounded-lg border border-line bg-white/75 p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
                 style={{ animationDelay: `${index * 60}ms` }}
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/40">{tile.label}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/60">{tile.label}</p>
                 <p className="mt-2 truncate text-sm font-semibold text-ink">
                   {tile.option ? tile.option.label : "No match yet"}
                 </p>
@@ -419,7 +419,7 @@ function HeaderMetric({
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/60">{label}</p>
         <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
       </div>
     </div>

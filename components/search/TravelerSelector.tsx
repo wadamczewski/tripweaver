@@ -69,44 +69,39 @@ export function TravelerSelector({ travelers, onTravelersChange, className }: Tr
   }
 
   return (
-    <section className={cn("space-y-5 rounded-[26px] border border-line bg-white p-5 shadow-soft", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <UsersRound className="h-4 w-4 text-accent" aria-hidden="true" />
-            Travelers
-          </div>
-          <p className="mt-1 text-sm text-ink/60">Ages are passed through for provider-specific pricing.</p>
+    <section className={cn("space-y-3 rounded-2xl border border-line bg-white p-4 shadow-soft", className)}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <UsersRound className="h-4 w-4 text-accent" aria-hidden="true" />
+          Travelers
+          <Tooltip text="Ages are passed through for provider-specific pricing." />
         </div>
-        <div className="rounded-md bg-mist px-3 py-1.5 text-sm font-semibold text-ink">
+        <span className="rounded-md bg-mist px-2.5 py-1 text-xs font-bold text-ink">
           {travelers.totalTravelers} total
-        </div>
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Stepper
+      <div className="divide-y divide-line overflow-hidden rounded-xl border border-line">
+        <StepperRow
           label="Adults"
           value={travelers.adults}
           min={1}
           max={9}
           onChange={(value) => commit({ adults: value })}
         />
-        <Stepper label="Children" value={travelers.children} min={0} max={6} onChange={setChildCount} />
-        <Stepper label="Infants" value={travelers.infants} min={0} max={4} onChange={setInfantCount} />
-      </div>
 
-      {childAges.length > 0 ? (
-        <div className="rounded-[22px] border border-line bg-paper/70 p-4">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
-            <UsersRound className="h-4 w-4 text-sage" aria-hidden="true" />
-            Child ages at departure
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <StepperRow label="Children" value={travelers.children} min={0} max={6} onChange={setChildCount} />
+        {childAges.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 bg-paper/70 px-3 py-2.5">
+            <span className="flex items-center gap-1 text-xs font-semibold text-ink/55">
+              <UsersRound className="h-3.5 w-3.5 text-sage" aria-hidden="true" />
+              Ages
+            </span>
             {childAges.map((age, index) => (
-              <label className="text-sm font-medium text-ink" key={`child-age-${index}`}>
-                Child {index + 1}
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-ink" key={`child-age-${index}`}>
+                <span className="text-ink/50">Child {index + 1}</span>
                 <select
-                  className="mt-2 h-12 w-full rounded-2xl border border-line bg-white px-3 py-2 text-base text-ink shadow-sm transition focus:border-accent focus:outline-none"
+                  className="h-8 rounded-lg border border-line bg-white px-2 text-xs font-semibold text-ink shadow-sm transition focus:border-accent focus:outline-none"
                   value={age}
                   onChange={(event) => {
                     const nextAges = [...childAges];
@@ -116,46 +111,41 @@ export function TravelerSelector({ travelers, onTravelersChange, className }: Tr
                 >
                   {CHILD_AGES.map((childAge) => (
                     <option value={childAge} key={childAge}>
-                      {childAge} years
+                      {childAge}y
                     </option>
                   ))}
                 </select>
               </label>
             ))}
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {infantAges.length > 0 ? (
-        <div className="rounded-[22px] border border-line bg-paper/70 p-4">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
-            <Baby className="h-4 w-4 text-sage" aria-hidden="true" />
-            Infant details
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <StepperRow label="Infants" value={travelers.infants} min={0} max={4} onChange={setInfantCount} />
+        {infantAges.length > 0 ? (
+          <div className="space-y-2 bg-paper/70 px-3 py-2.5">
             {infantAges.map((age, index) => (
-              <div className="rounded-2xl border border-line bg-white p-4" key={`infant-${index}`}>
-                <label className="text-sm font-medium text-ink">
-                  Infant {index + 1} age
-                  <select
-                    className="mt-2 h-12 w-full rounded-2xl border border-line bg-paper px-3 py-2 text-base text-ink transition focus:border-accent focus:outline-none"
-                    value={age}
-                    onChange={(event) => {
-                      const nextAges = [...infantAges];
-                      nextAges[index] = Number(event.target.value);
-                      commit({ infantAges: nextAges });
-                    }}
-                  >
-                    {INFANT_AGES.map((infantAge) => (
-                      <option value={infantAge} key={infantAge}>
-                        {infantAge === 0 ? "Under 1 year" : "1 year"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <SwitchRow
-                  className="mt-3"
-                  icon={<Armchair className="h-4 w-4" aria-hidden="true" />}
+              <div className="flex flex-wrap items-center gap-2" key={`infant-${index}`}>
+                <span className="flex items-center gap-1 text-xs font-semibold text-ink/50">
+                  <Baby className="h-3.5 w-3.5 text-sage" aria-hidden="true" />
+                  Infant {index + 1}
+                </span>
+                <select
+                  className="h-8 rounded-lg border border-line bg-white px-2 text-xs font-semibold text-ink shadow-sm transition focus:border-accent focus:outline-none"
+                  value={age}
+                  onChange={(event) => {
+                    const nextAges = [...infantAges];
+                    nextAges[index] = Number(event.target.value);
+                    commit({ infantAges: nextAges });
+                  }}
+                >
+                  {INFANT_AGES.map((infantAge) => (
+                    <option value={infantAge} key={infantAge}>
+                      {infantAge === 0 ? "Under 1y" : "1y"}
+                    </option>
+                  ))}
+                </select>
+                <CompactToggle
+                  icon={<Armchair className="h-3.5 w-3.5" aria-hidden="true" />}
                   label="Separate seat"
                   helper="If off, the infant travels on an adult's lap where the provider allows it, usually at a lower fare"
                   checked={infantSeats[index] ?? false}
@@ -168,10 +158,10 @@ export function TravelerSelector({ travelers, onTravelersChange, className }: Tr
               </div>
             ))}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <SwitchRow
           icon={<Armchair className="h-4 w-4" aria-hidden="true" />}
           label="Adjacent seats"
@@ -191,7 +181,7 @@ export function TravelerSelector({ travelers, onTravelersChange, className }: Tr
   );
 }
 
-function Stepper({
+function StepperRow({
   label,
   value,
   min,
@@ -205,30 +195,63 @@ function Stepper({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="rounded-[22px] border border-line bg-paper/70 p-4">
-      <div className="mb-2 text-sm font-semibold text-ink">{label}</div>
-      <div className="flex h-12 items-center justify-between rounded-2xl border border-line bg-white px-1.5">
+    <div className="flex items-center justify-between gap-3 bg-white px-3 py-2.5">
+      <span className="text-sm font-semibold text-ink">{label}</span>
+      <div className="flex items-center gap-3">
         <button
           type="button"
-          className="grid h-9 w-9 place-items-center rounded-xl text-ink transition hover:bg-mist disabled:cursor-not-allowed disabled:text-ink/25"
+          className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink transition hover:bg-mist disabled:cursor-not-allowed disabled:opacity-30"
           disabled={value <= min}
           onClick={() => onChange(Math.max(min, value - 1))}
           aria-label={`Decrease ${label.toLowerCase()}`}
         >
-          <Minus className="h-4 w-4" aria-hidden="true" />
+          <Minus className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
-        <span className="min-w-8 text-center text-sm font-bold text-ink">{value}</span>
+        <span className="min-w-4 text-center text-sm font-bold text-ink">{value}</span>
         <button
           type="button"
-          className="grid h-9 w-9 place-items-center rounded-xl text-ink transition hover:bg-mist disabled:cursor-not-allowed disabled:text-ink/25"
+          className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink transition hover:bg-mist disabled:cursor-not-allowed disabled:opacity-30"
           disabled={value >= max}
           onClick={() => onChange(Math.min(max, value + 1))}
           aria-label={`Increase ${label.toLowerCase()}`}
         >
-          <Plus className="h-4 w-4" aria-hidden="true" />
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       </div>
     </div>
+  );
+}
+
+function CompactToggle({
+  icon,
+  label,
+  helper,
+  checked,
+  onChange
+}: {
+  icon: ReactNode;
+  label: string;
+  helper?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition",
+          checked ? "border-accent bg-accent text-white" : "border-line bg-white text-ink/60 hover:border-accent/50"
+        )}
+      >
+        {icon}
+        {label}
+      </button>
+      {helper ? <Tooltip text={helper} /> : null}
+    </span>
   );
 }
 
@@ -253,7 +276,7 @@ function SwitchRow({
       aria-checked={checked}
       tabIndex={0}
       className={cn(
-        "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-left transition hover:border-accent/50 hover:shadow-soft",
+        "flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-xl border border-line bg-white px-3 py-2 text-left transition hover:border-accent/50 hover:shadow-soft",
         checked ? "shadow-soft" : "",
         className
       )}
@@ -266,20 +289,20 @@ function SwitchRow({
       }}
     >
       <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
-        <span className={cn("text-ink/45", checked ? "text-accent" : "")}>{icon}</span>
+        <span className={cn("text-ink/62", checked ? "text-accent" : "")}>{icon}</span>
         <span className="truncate">{label}</span>
         {helper ? <Tooltip text={helper} /> : null}
       </span>
       <span
         className={cn(
-          "flex h-6 w-11 shrink-0 items-center rounded-full p-1 transition",
+          "flex h-5 w-9 shrink-0 items-center rounded-full p-1 transition",
           checked ? "bg-accent" : "bg-line"
         )}
       >
         <span
           className={cn(
-            "h-4 w-4 rounded-full bg-white shadow-sm transition",
-            checked ? "translate-x-5" : "translate-x-0"
+            "h-3.5 w-3.5 rounded-full bg-white shadow-sm transition",
+            checked ? "translate-x-4" : "translate-x-0"
           )}
         />
       </span>

@@ -3,6 +3,7 @@
 import { Check, DoorOpen, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useMemo } from "react";
 
+import { Tooltip } from "@/components/ui/Tooltip";
 import type { RoomOccupancy, Traveler, TravelerGroup } from "@/lib/types";
 
 import { buildRoomsForTravelers, cn, nextRoomId, roomTotals, roomTravelerTotal } from "./searchUtils";
@@ -81,108 +82,103 @@ export function RoomAllocator({ rooms, travelers, onRoomsChange, className }: Ro
   }
 
   return (
-    <section className={cn("space-y-5 rounded-[26px] border border-line bg-white p-5 shadow-soft", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <DoorOpen className="h-4 w-4 text-accent" aria-hidden="true" />
-            Room allocation
-          </div>
-          <p className="mt-1 text-sm text-ink/60">Assign adults and child ages to rooms before provider estimates run.</p>
+    <section className={cn("space-y-3 rounded-2xl border border-line bg-white p-4 shadow-soft", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <DoorOpen className="h-4 w-4 text-accent" aria-hidden="true" />
+          Room allocation
+          <Tooltip text="Assign adults and child ages to rooms before provider estimates run." />
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-paper px-4 text-sm font-semibold text-ink transition hover:border-accent/50 hover:bg-white"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-xs font-semibold text-ink transition hover:border-accent/50 hover:bg-white"
             onClick={() => onRoomsChange(buildRoomsForTravelers(travelers))}
           >
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             Auto-fit
           </button>
           <button
             type="button"
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-accentDark"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-ink px-3 text-xs font-semibold text-white transition hover:bg-accentDark"
             onClick={addRoom}
           >
-            <Plus className="h-4 w-4" aria-hidden="true" />
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             Add room
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="flex divide-x divide-line overflow-hidden rounded-xl border border-line">
         <AllocationMeter label="Adults" current={totals.adults} target={travelers.adults} />
         <AllocationMeter label="Children" current={totals.children} target={travelers.children} />
         <AllocationMeter label="Infants" current={totals.infants} target={travelers.infants} />
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {safeRooms.map((room, index) => (
-          <div className="rounded-[22px] border border-line bg-paper/70 p-4" key={room.roomId}>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-bold text-ink">Room {index + 1}</div>
-                <div className="text-xs text-ink/55">
-                  {roomTravelerTotal(room)} of 5 travelers assigned
-                </div>
+          <div className="rounded-xl border border-line bg-paper/70 p-3" key={room.roomId}>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-bold text-ink">Room {index + 1}</span>
+                <span className="text-xs text-ink/50">{roomTravelerTotal(room)} of 5 assigned</span>
               </div>
-              <button
-                type="button"
-                className="grid h-10 w-10 place-items-center rounded-xl text-ink/55 transition hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:text-ink/20"
-                disabled={safeRooms.length <= 1}
-                onClick={() => removeRoom(room.roomId)}
-                aria-label={`Remove room ${index + 1}`}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-ink/55">Adults</span>
+                  <div className="flex h-7 items-center gap-1.5 rounded-lg border border-line bg-white px-1">
+                    <button
+                      type="button"
+                      className="grid h-5 w-5 place-items-center rounded text-ink transition hover:bg-mist disabled:cursor-not-allowed disabled:opacity-30"
+                      disabled={room.adults <= 0}
+                      onClick={() => updateRoom(room.roomId, { adults: Math.max(0, room.adults - 1) })}
+                      aria-label={`Decrease adults in room ${index + 1}`}
+                    >
+                      <Minus className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                    <span className="min-w-3 text-center text-xs font-bold text-ink">{room.adults}</span>
+                    <button
+                      type="button"
+                      className="grid h-5 w-5 place-items-center rounded text-ink transition hover:bg-mist disabled:cursor-not-allowed disabled:opacity-30"
+                      disabled={roomTravelerTotal(room) >= 5}
+                      onClick={() => updateRoom(room.roomId, { adults: Math.min(5, room.adults + 1) })}
+                      aria-label={`Increase adults in room ${index + 1}`}
+                    >
+                      <Plus className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="grid h-7 w-7 place-items-center rounded-lg text-ink/50 transition hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:text-ink/20"
+                  disabled={safeRooms.length <= 1}
+                  onClick={() => removeRoom(room.roomId)}
+                  aria-label={`Remove room ${index + 1}`}
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[14rem_1fr]">
-              <div className="rounded-2xl border border-line bg-white p-4">
-                <div className="mb-2 text-sm font-semibold text-ink">Adults in room</div>
-                <div className="flex h-12 items-center justify-between rounded-2xl border border-line bg-paper px-1.5">
-                  <button
-                    type="button"
-                    className="grid h-9 w-9 place-items-center rounded-xl text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:text-ink/25"
-                    disabled={room.adults <= 0}
-                    onClick={() => updateRoom(room.roomId, { adults: Math.max(0, room.adults - 1) })}
-                    aria-label={`Decrease adults in room ${index + 1}`}
-                  >
-                    <Minus className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  <span className="min-w-8 text-center text-sm font-bold text-ink">{room.adults}</span>
-                  <button
-                    type="button"
-                    className="grid h-9 w-9 place-items-center rounded-xl text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:text-ink/25"
-                    disabled={roomTravelerTotal(room) >= 5}
-                    onClick={() => updateRoom(room.roomId, { adults: Math.min(5, room.adults + 1) })}
-                    aria-label={`Increase adults in room ${index + 1}`}
-                  >
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <MinorAssignment
-                  label="Children"
-                  emptyLabel="No child travelers"
-                  roomId={room.roomId}
-                  tokens={childTokens}
-                  assignments={childAssignments}
-                  roomIsFull={roomTravelerTotal(room) >= 5}
-                  onToggle={toggleMinor}
-                />
-                <MinorAssignment
-                  label="Infants"
-                  emptyLabel="No infant travelers"
-                  roomId={room.roomId}
-                  tokens={infantTokens}
-                  assignments={infantAssignments}
-                  roomIsFull={roomTravelerTotal(room) >= 5}
-                  onToggle={toggleMinor}
-                />
-              </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              <MinorAssignment
+                label="Children"
+                emptyLabel="No children"
+                roomId={room.roomId}
+                tokens={childTokens}
+                assignments={childAssignments}
+                roomIsFull={roomTravelerTotal(room) >= 5}
+                onToggle={toggleMinor}
+              />
+              <MinorAssignment
+                label="Infants"
+                emptyLabel="No infants"
+                roomId={room.roomId}
+                tokens={infantTokens}
+                assignments={infantAssignments}
+                roomIsFull={roomTravelerTotal(room) >= 5}
+                onToggle={toggleMinor}
+              />
             </div>
           </div>
         ))}
@@ -195,14 +191,12 @@ function AllocationMeter({ label, current, target }: { label: string; current: n
   const isMatched = current === target;
 
   return (
-    <div className={cn("rounded-2xl border px-4 py-3", isMatched ? "border-sage/30 bg-sage/10" : "border-accent/30 bg-accent/10")}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">{label}</span>
-        {isMatched ? <Check className="h-4 w-4 text-sage" aria-hidden="true" /> : null}
-      </div>
-      <div className="mt-1 text-sm font-bold text-ink">
-        {current} / {target}
-      </div>
+    <div className="flex flex-1 items-center justify-between gap-2 px-3 py-2">
+      <span className="text-xs font-semibold text-ink/55">{label}</span>
+      <span className="flex items-center gap-1 text-sm font-bold text-ink">
+        {current}/{target}
+        {isMatched ? <Check className="h-3.5 w-3.5 text-sage" aria-hidden="true" /> : null}
+      </span>
     </div>
   );
 }
@@ -224,40 +218,37 @@ function MinorAssignment({
   roomIsFull: boolean;
   onToggle: (roomId: string, token: MinorToken) => void;
 }) {
-  return (
-    <div>
-      <div className="mb-2 text-sm font-semibold text-ink">{label}</div>
-      {tokens.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {tokens.map((token) => {
-            const isAssigned = assignments[roomId]?.includes(token.id) ?? false;
-            const isDisabled = roomIsFull && !isAssigned;
+  if (tokens.length === 0) return null;
 
-            return (
-              <button
-                type="button"
-                className={cn(
-                  "rounded-2xl border px-4 py-2.5 text-sm font-semibold transition",
-                  isAssigned
-                    ? "border-accent bg-accent text-white shadow-soft"
-                    : "border-line bg-white text-ink hover:border-accent/50",
-                  isDisabled ? "cursor-not-allowed opacity-45 hover:border-line" : ""
-                )}
-                disabled={isDisabled}
-                key={token.id}
-                onClick={() => onToggle(roomId, token)}
-                aria-pressed={isAssigned}
-              >
-                {token.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-3 text-sm text-ink/50">
-          {emptyLabel}
-        </div>
-      )}
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs font-semibold text-ink/55">{label}:</span>
+      <div className="flex flex-wrap gap-1.5">
+        {tokens.map((token) => {
+          const isAssigned = assignments[roomId]?.includes(token.id) ?? false;
+          const isDisabled = roomIsFull && !isAssigned;
+
+          return (
+            <button
+              type="button"
+              className={cn(
+                "rounded-lg border px-2.5 py-1 text-xs font-semibold transition",
+                isAssigned
+                  ? "border-accent bg-accent text-white"
+                  : "border-line bg-white text-ink hover:border-accent/50",
+                isDisabled ? "cursor-not-allowed opacity-45 hover:border-line" : ""
+              )}
+              disabled={isDisabled}
+              key={token.id}
+              onClick={() => onToggle(roomId, token)}
+              aria-pressed={isAssigned}
+              title={emptyLabel}
+            >
+              {token.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
