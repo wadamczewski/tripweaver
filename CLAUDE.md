@@ -1,8 +1,7 @@
-# Agent instructions
+# TripWeaver — instructions for Claude Code
 
-This is a normal git repository (`origin` = `wadamczewski/tripweaver-unmocked`),
-not a synced or managed ChatGPT-project mirror. Files here are permanent —
-nothing external will overwrite or replace them.
+This is a normal git repository (`origin` = `wadamczewski/tripweaver-unmocked`).
+It is not synced or managed by any external project-mirror mechanism.
 
 Start with `PROJECT_STATUS.md` for current architecture, provider status
 (what's real vs. demo-fallback vs. not implemented), and known gaps.
