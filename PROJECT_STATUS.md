@@ -56,7 +56,7 @@ everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
 | Flights | **TripWeaver Demo Transport** | Fallback, always runs, always succeeds. 4 synthetic routes (direct flight, connecting flight, train+flight via Berlin, overnight bus+flight), priced off traveler count. `lib/providers/transport/demoFlights.ts`. |
 | Hotels | Booking.com Demand API | Not usable. Partner-gated, no credentials, and no accessible self-serve path found. Code exists but needs `bookingCityId` per destination via `TRIPWEAVER_LOCATION_HINTS_JSON` even if credentialed. |
 | Hotels | Skyscanner Hotels | Not usable. Same partner-gating issue as Booking.com. |
-| Hotels | **Hotelbeds / HBX Group API Suite** | **Adapter written and wired in (2026-07-31), unverified — blocked on a real key.** `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. Needs `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) plus a `hotelbedsDestinationCode` hint per destination in `TRIPWEAVER_LOCATION_HINTS_JSON` — Hotelbeds destination codes are their own codification, not necessarily IATA. Register at `developer.hotelbeds.com/register` (genuinely self-serve, free "Evaluation Plan", no business required) — user has not registered yet. Once a key + destination codes exist, this needs a live test pass; the request/response shape was built from Hotelbeds' public docs, not verified against the real API. |
+| Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price) alongside/suppressing the demo provider per the usual rule. |
 | Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
 | Packages | *(none)* | **Not implemented at all.** `packageProviders = []` in `lib/providers/index.ts`. The Package holidays results tab will always be empty. No demo fallback either. |
 | Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-4o-mini` via `OPENROUTER_API_KEY`). Falls back to a local heuristic scorer if the key is missing or the call fails. `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
@@ -77,13 +77,26 @@ about if another provider integration hits similar issues:
    `one_of` validation error) — it wants `age` alone for children. Fixed to
    `{ age }`.
 
+**Getting Hotelbeds working (2026-07-31):** user registered at
+`developer.hotelbeds.com` and provided a real `HOTELBEDS_API_KEY` +
+`HOTELBEDS_SECRET`, now in `.env.local`. Verified the signature auth
+(`SHA-256(apiKey + secret + unixTimestamp)`) with a direct `curl` call
+before touching the app — confirmed both `"PMI"` (Palma de Mallorca) and
+`"BCN"` (Barcelona) work as Hotelbeds destination codes against their test
+API, returning real hotels with real prices. Added `"BCN"` to
+`TRIPWEAVER_LOCATION_HINTS_JSON` and confirmed the full pipeline end to end
+in the browser (real hotel name/room/price rendering with a "Hotelbeds"
+badge on the trip card, demo stays correctly suppressed). The adapter code
+itself needed no changes — it was correct on the first live test.
+
 **Demo fallback suppression (2026-07-31):** `lib/search.ts` now suppresses a
 category's demo provider whenever any real provider for that category
 returned results, instead of always blending both. If every real provider for
 a category fails or isn't configured, demo results still show (so the app
 stays demoable). Flights are pure-real now that Duffel works for any of the
-~130 cities in `lib/cityData.ts`; hotels still show demo results, since no
-real accommodation provider works yet.
+~130 cities in `lib/cityData.ts`; hotels are pure-real for Barcelona now that
+Hotelbeds is verified working — other destinations still fall back to demo
+stays until they get a `hotelbedsDestinationCode` in `TRIPWEAVER_LOCATION_HINTS_JSON`.
 
 **Results page redesign (2026-07-31):** the results view was restructured
 end to end — see "What's implemented" below for the current shape. Highlights:
@@ -169,13 +182,12 @@ call failed) instead of silently showing nothing.
 
 - **Package holidays**: zero implementation, not even a demo provider. If you
   want this tab to ever show anything, start here.
-- **Hotelbeds integration**: code written and wired in but **unverified** — no
-  key exists yet to test against. Register at `developer.hotelbeds.com/register`,
-  add `HOTELBEDS_API_KEY`/`HOTELBEDS_SECRET` to `.env.local`, add a
-  `hotelbedsDestinationCode` hint for at least one destination in
-  `TRIPWEAVER_LOCATION_HINTS_JSON`, then run a real search and fix whatever the
-  live API response shape doesn't match (field names/nesting were built from
-  docs, not a live response).
+- **Hotelbeds destination coverage**: only Barcelona has a
+  `hotelbedsDestinationCode` in `TRIPWEAVER_LOCATION_HINTS_JSON` right now
+  (`"BCN"`). Every other destination falls back to demo stays until someone
+  looks up and adds its code — Hotelbeds codes are their own codification,
+  not IATA, so they can't be derived from `lib/cityData.ts` the way flight
+  IATA codes were.
 - **Amadeus, Booking.com, Skyscanner**: dead ends for an individual/non-business
   user right now (see provider table). Don't spend time on these unless that
   changes.
@@ -218,11 +230,11 @@ Full variable list with defaults: `.env.example`.
 
 These are independent enough to hand to separate sessions:
 
-1. **Hotelbeds verification** — register for a key at
-   `developer.hotelbeds.com/register`, add credentials + a destination code
-   hint, run a real search, and fix whatever `lib/providers/accommodations/hotelbeds.ts`
-   gets wrong against the live API (adapter is written and wired in but never
-   tested against a real response).
+1. **Hotelbeds destination coverage** — Hotelbeds is verified working, but
+   only Barcelona has a `hotelbedsDestinationCode` hint. Look up and add
+   codes for other frequently-searched cities in
+   `TRIPWEAVER_LOCATION_HINTS_JSON` so they get real hotels too instead of
+   falling back to demo stays.
 2. **Package holidays** — design + build from scratch, no existing real or
    demo provider to build on.
 3. **Testing** — add a test runner and at least cover `lib/adapters/*` and

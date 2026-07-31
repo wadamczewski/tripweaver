@@ -16,7 +16,7 @@ Without provider API keys the app still runs: each provider reports a clear conf
 Copy `.env.local` (gitignored) with the credentials in `.env.example`:
 
 - Flights: **Duffel** (real, working — needs a token with the `air.offer_requests.create` permission), Amadeus (enterprise-only, not usable for self-serve accounts)
-- Accommodation: **Hotelbeds** (real, self-serve at `developer.hotelbeds.com/register` — adapter is written and wired in but not yet verified against a live key, needs `HOTELBEDS_API_KEY`/`HOTELBEDS_SECRET` plus a `hotelbedsDestinationCode` hint per destination), Booking.com Demand API, Skyscanner Hotels (both partner-gated, not usable without a business account — see `PROJECT_STATUS.md`)
+- Accommodation: **Hotelbeds** (real, working — self-serve at `developer.hotelbeds.com/register`, needs `HOTELBEDS_API_KEY`/`HOTELBEDS_SECRET` plus a `hotelbedsDestinationCode` hint per destination in `TRIPWEAVER_LOCATION_HINTS_JSON`; only Barcelona has one configured so far), Booking.com Demand API, Skyscanner Hotels (both partner-gated, not usable without a business account — see `PROJECT_STATUS.md`)
 - Optimizer agent: OpenRouter (`OPENROUTER_API_KEY`) — falls back to a local heuristic scorer if unset
 
 All provider calls happen server-side (`lib/providers/*`, called from `app/api/trip-search` and `app/api/trip-optimizer-review`). Never call them from client components.
@@ -37,7 +37,7 @@ See `docs/unmocking.md` for provider wiring notes.
 ## Known limitations
 
 - Package holidays are not yet wired to a real provider (the tab will be empty).
-- No real hotel provider verified yet — Booking.com and Skyscanner are both partner-gated and not usable without a business account. Hotelbeds has a genuine free self-serve signup and an adapter is written and wired in (`lib/providers/accommodations/hotelbeds.ts`), but it's untested against a live key, so accommodation results are still the demo fallback until someone registers and verifies it (see `PROJECT_STATUS.md`).
+- Hotelbeds is real and verified working, but only for destinations with a `hotelbedsDestinationCode` configured in `TRIPWEAVER_LOCATION_HINTS_JSON` (currently just Barcelona) — other destinations fall back to demo stays. Booking.com and Skyscanner remain partner-gated and not usable without a business account.
 - Per-traveler pricing, timelines, and cost-breakdown line items beyond the real transport/accommodation totals are estimates derived from age/category rules, not verified fares — this is flagged in the UI (`costAssumptions` on each trip).
 - Origin/destination cities are resolved to IATA/location codes via `lib/cityData.ts` (~130 major cities). Cities outside that list fail with a clear error rather than guessing a code; add missing ones there or via `TRIPWEAVER_LOCATION_HINTS_JSON`.
 - Location IDs for Booking.com and Skyscanner must be supplied per-city via `TRIPWEAVER_LOCATION_HINTS_JSON`; unmapped cities will fail with a clear error rather than guess an ID.
