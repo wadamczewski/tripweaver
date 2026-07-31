@@ -52,9 +52,9 @@ export function resolveLocation(city: string): LocationHint {
   const envHint = envHints[key] ?? envHints[city];
 
   return {
-    city,
     ...builtInLocations[key],
     ...envHint,
+    city,
   };
 }
 

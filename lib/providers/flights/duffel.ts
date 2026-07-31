@@ -25,6 +25,13 @@ type DuffelOfferRequestResponse = {
   };
 };
 
+function parseDurationMinutes(duration?: string) {
+  if (!duration) return undefined;
+  const hours = duration.match(/(\d+)H/)?.[1];
+  const minutes = duration.match(/(\d+)M/)?.[1];
+  return Number(hours ?? 0) * 60 + Number(minutes ?? 0);
+}
+
 function passengers(criteria: TripSearchCriteria) {
   const adults = Array.from({ length: criteria.travelers.adults }, () => ({ type: "adult" }));
   const children = criteria.travelers.childAges.map((age) => ({ type: "child", age }));
@@ -95,6 +102,7 @@ export const duffelFlightsProvider: TravelProvider<TransportOffer> = {
         title: compactText([offer.owner?.name, outbound.summary]),
         outboundSummary: outbound.summary,
         inboundSummary: inbound.summary,
+        durationMinutes: parseDurationMinutes(offer.slices?.[0]?.duration),
         stops: outbound.stops,
         totalPrice: money(offer.total_amount, offer.total_currency ?? criteria.currency),
         luggageIncluded: criteria.checkedLuggage,
