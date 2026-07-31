@@ -1,5 +1,6 @@
 import { accommodationProviders, transportProviders } from "./providers";
 import { ProviderConfigError } from "./providers/http";
+import { convertMoney } from "./providers/fx";
 import { reviewTripOptionsWithAgent, defaultWeights } from "./optimizer/agent-review";
 import type {
   AccommodationOffer,
@@ -10,6 +11,22 @@ import type {
   TripSearchCriteria,
   TripSearchResults,
 } from "./trip/types";
+
+const DEMO_TRANSPORT_PROVIDER_ID = "tripweaver-demo-flights";
+const DEMO_ACCOMMODATION_PROVIDER_ID = "tripweaver-demo-stays";
+
+function offersExcludingSuppressedDemo<TOffer>(
+  searches: Array<{ offers: TOffer[]; status: ProviderStatus }>,
+  demoProviderId: string,
+) {
+  const realProviderSucceeded = searches.some(
+    (result) => result.status.providerId !== demoProviderId && result.status.ok && result.offers.length > 0,
+  );
+
+  return searches
+    .filter((result) => realProviderSucceeded ? result.status.providerId !== demoProviderId : true)
+    .flatMap((result) => result.offers);
+}
 
 async function searchProvider<TOffer>(provider: TravelProvider<TOffer>, criteria: TripSearchCriteria) {
   try {
@@ -37,16 +54,16 @@ async function searchProvider<TOffer>(provider: TravelProvider<TOffer>, criteria
 
 function combineOptions(transports: TransportOffer[], accommodations: AccommodationOffer[], criteria: TripSearchCriteria) {
   const currency = criteria.currency;
-  const sameCurrencyTransports = transports.filter((offer) => offer.totalPrice.currency === currency);
-  const sameCurrencyAccommodations = accommodations.filter((offer) => offer.totalPrice.currency === currency);
 
-  return sameCurrencyTransports.slice(0, 8).flatMap((transport) =>
-    sameCurrencyAccommodations.slice(0, 8).map((accommodation) => ({
+  return transports.slice(0, 8).flatMap((transport) =>
+    accommodations.slice(0, 8).map((accommodation) => ({
       id: `${transport.id}__${accommodation.id}`,
       transport,
       accommodation,
       totalPrice: {
-        amount: Number((transport.totalPrice.amount + accommodation.totalPrice.amount).toFixed(2)),
+        amount: Number(
+          (convertMoney(transport.totalPrice, currency).amount + convertMoney(accommodation.totalPrice, currency).amount).toFixed(2),
+        ),
         currency,
       },
     })),
@@ -59,12 +76,12 @@ export async function searchTrip(criteria: TripSearchCriteria): Promise<TripSear
     Promise.all(accommodationProviders.map((provider) => searchProvider(provider, criteria))),
   ]);
 
-  const transportOptions = transportSearches
-    .flatMap((result) => result.offers)
-    .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
-  const accommodationOptions = accommodationSearches
-    .flatMap((result) => result.offers)
-    .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
+  const transportOptions = offersExcludingSuppressedDemo(transportSearches, DEMO_TRANSPORT_PROVIDER_ID).sort(
+    (a, b) => a.totalPrice.amount - b.totalPrice.amount,
+  );
+  const accommodationOptions = offersExcludingSuppressedDemo(accommodationSearches, DEMO_ACCOMMODATION_PROVIDER_ID).sort(
+    (a, b) => a.totalPrice.amount - b.totalPrice.amount,
+  );
   const tripOptions = combineOptions(transportOptions, accommodationOptions, criteria).sort(
     (a, b) => a.totalPrice.amount - b.totalPrice.amount,
   );

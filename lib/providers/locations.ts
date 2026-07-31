@@ -1,3 +1,5 @@
+import { CITY_DATABASE } from "../cityData";
+
 export type LocationHint = {
   city: string;
   countryCode?: string;
@@ -6,31 +8,15 @@ export type LocationHint = {
   longitude?: number;
   bookingCityId?: number;
   skyscannerHotelEntityId?: string;
+  hotelbedsDestinationCode?: string;
 };
 
-const builtInLocations: Record<string, LocationHint> = {
-  barcelona: {
-    city: "Barcelona",
-    countryCode: "ES",
-    iataCode: "BCN",
-    latitude: 41.3874,
-    longitude: 2.1686,
-  },
-  berlin: {
-    city: "Berlin",
-    countryCode: "DE",
-    iataCode: "BER",
-    latitude: 52.52,
-    longitude: 13.405,
-  },
-  szczecin: {
-    city: "Szczecin",
-    countryCode: "PL",
-    iataCode: "SZZ",
-    latitude: 53.4285,
-    longitude: 14.5528,
-  },
-};
+const builtInLocations: Record<string, LocationHint> = Object.fromEntries(
+  CITY_DATABASE.map((entry) => [
+    entry.city.trim().toLowerCase(),
+    { city: entry.city, iataCode: entry.iata } satisfies LocationHint,
+  ]),
+);
 
 function normalizeCity(value: string) {
   return value.trim().toLowerCase();

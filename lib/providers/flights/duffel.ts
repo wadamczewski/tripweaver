@@ -34,7 +34,7 @@ function parseDurationMinutes(duration?: string) {
 
 function passengers(criteria: TripSearchCriteria) {
   const adults = Array.from({ length: criteria.travelers.adults }, () => ({ type: "adult" }));
-  const children = criteria.travelers.childAges.map((age) => ({ type: "child", age }));
+  const children = criteria.travelers.childAges.map((age) => ({ age }));
   const infants = Array.from({ length: criteria.travelers.infants }, () => ({ type: "infant_without_seat" }));
   return [...adults, ...children, ...infants];
 }
