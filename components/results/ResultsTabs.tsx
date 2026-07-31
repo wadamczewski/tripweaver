@@ -4,15 +4,12 @@ import { useMemo, useState } from "react";
 import clsx from "clsx";
 import {
   AlertCircle,
-  CalendarClock,
   CheckCircle2,
   CircleDashed,
   Hotel,
   Loader2,
-  MapPinned,
   PackageCheck,
   Plane,
-  Sparkles,
   TrainFront
 } from "lucide-react";
 import type { SearchResults, TripOption } from "@/lib/types";
@@ -25,8 +22,6 @@ import {
   DEFAULT_ESTIMATE_LABEL,
   RESULTS_TABS,
   buildRecommendationBadges,
-  formatGeneratedAt,
-  formatMoney,
   getRecommendationTiles,
   getResultsCounts
 } from "./helpers";
@@ -169,39 +164,15 @@ export function ResultsTabs({
   }
 
   return (
-    <section className={clsx("mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8", className)}>
-      <header className="mb-6 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accentDark">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            {estimateLabel}
-          </div>
-          <h1 className="text-3xl font-bold tracking-normal text-ink sm:text-4xl">Trip comparison results</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/65">
-            {results.criteria.origin} to {results.criteria.destination} | {results.criteria.travelers.totalTravelers} traveler
-            {results.criteria.travelers.totalTravelers === 1 ? "" : "s"} | generated{" "}
-            {formatGeneratedAt(results.generatedAt)}
-          </p>
-        </div>
-
-        <div className="grid gap-2 rounded-lg border border-line bg-white/70 p-4 shadow-soft sm:grid-cols-2 lg:min-w-[24rem]">
-          <HeaderMetric
-            icon={CalendarClock}
-            label="Dates"
-            value={`${results.criteria.departureDate} to ${results.criteria.returnDate}`}
-          />
-          <HeaderMetric
-            icon={MapPinned}
-            label="Budget"
-            value={results.criteria.budget ? formatMoney(results.criteria.budget) : "No max budget"}
-          />
-        </div>
+    <section className={clsx("w-full", className)}>
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold tracking-normal text-white sm:text-4xl">Results</h1>
       </header>
 
       {providerStatuses.length > 0 ? <ProviderStatusStrip statuses={providerStatuses} /> : null}
 
       <nav className="mb-6 overflow-x-auto" aria-label="Result categories">
-        <div className="inline-flex min-w-full gap-2 rounded-lg border border-line bg-white/75 p-1 shadow-soft sm:min-w-0">
+        <div className="flex w-full min-w-full gap-2 rounded-lg border border-line bg-white p-1 shadow-soft">
           {RESULTS_TABS.map((tab) => {
             const isActive = activeTab === tab.id;
 
@@ -238,7 +209,7 @@ export function ResultsTabs({
             {recommendationTiles.map((tile, index) => (
               <div
                 key={tile.id}
-                className="animate-fade-up rounded-lg border border-line bg-white/75 p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+                className="animate-fade-up rounded-lg border border-line bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
                 style={{ animationDelay: `${index * 60}ms` }}
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/60">{tile.label}</p>
@@ -361,7 +332,7 @@ export function ResultsTabs({
 
 function ProviderStatusStrip({ statuses }: { statuses: ProviderStatus[] }) {
   return (
-    <section className="mb-6 rounded-lg border border-line bg-white/70 p-4 shadow-soft" aria-label="Provider agent status">
+    <section className="mb-6 rounded-lg border border-line bg-white p-4 shadow-soft" aria-label="Provider agent status">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-ink">Provider agents</h2>
@@ -404,31 +375,9 @@ function StatusIcon({ state }: { state: ProviderStatus["state"] }) {
   return <CircleDashed className="h-4 w-4 shrink-0 text-ink/35" aria-hidden="true" />;
 }
 
-function HeaderMetric({
-  icon: Icon,
-  label,
-  value
-}: {
-  icon: typeof CalendarClock;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex min-w-0 gap-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mist text-accentDark">
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/60">{label}</p>
-        <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
-      </div>
-    </div>
-  );
-}
-
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-line bg-white/70 p-8 text-center">
+    <div className="rounded-lg border border-dashed border-line bg-white p-8 text-center">
       <p className="text-base font-semibold text-ink">{title}</p>
       <p className="mt-2 text-sm text-ink/55">{body}</p>
     </div>

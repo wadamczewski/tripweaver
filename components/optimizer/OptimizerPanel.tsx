@@ -198,7 +198,7 @@ export function OptimizerPanel({
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.8fr)]">
+      <div className="space-y-5">
         <div className="space-y-4">
           <div className="grid gap-3">
             {sliderConfigs.map((item) => (
@@ -244,7 +244,7 @@ export function OptimizerPanel({
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)]">
+      <div className="space-y-5">
         <div className="space-y-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -257,7 +257,7 @@ export function OptimizerPanel({
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3">
             {scenarios.map((scenario) => (
               <ScenarioButton
                 key={scenario.id}

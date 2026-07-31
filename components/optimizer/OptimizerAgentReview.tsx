@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCcw, Sparkles } from "lucide-react";
+import { ChevronDown, RefreshCcw, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import styles from "./OptimizerAgentReview.module.css";
 import type {
@@ -35,6 +35,7 @@ export function OptimizerAgentReview({
   initialReview,
   onReview,
 }: Props) {
+  const [expanded, setExpanded] = useState(false);
   const [review, setReview] = useState(initialReview);
   const [reviewedWeights, setReviewedWeights] = useState(() => stableJson(initialReview.appliedWeights));
   const [isReviewing, setIsReviewing] = useState(false);
@@ -80,29 +81,41 @@ export function OptimizerAgentReview({
   }
 
   return (
-    <section className={styles.review} aria-live="polite">
-      <div className={styles.copy}>
-        <div className={styles.topline}>
-          <div className={styles.eyebrow}>
+    <section className={styles.review} aria-live="polite" data-expanded={expanded}>
+      <div className={styles.headerRow}>
+        <button
+          type="button"
+          className={styles.toggle}
+          onClick={() => setExpanded((current) => !current)}
+          aria-expanded={expanded}
+        >
+          <span className={styles.eyebrow}>
             <Sparkles size={18} aria-hidden="true" />
             Trip Optimizer agent
-          </div>
-          <div className={styles.status} data-state={isReviewing ? "working" : hasChanges ? "pending" : "complete"}>
+          </span>
+          {!expanded ? <span className={styles.inlineHeadline}>{review.headline}</span> : null}
+          <span className={styles.status} data-state={isReviewing ? "working" : hasChanges ? "pending" : "complete"}>
             <span className={styles.statusDot} aria-hidden="true" />
             {statusLabel}
-          </div>
-        </div>
-        <h3>{review.headline}</h3>
-        <p>{review.summary}</p>
-        <p className={styles.statusBody}>{statusBody}</p>
-        {error ? <p className={styles.error}>{error}</p> : null}
+          </span>
+          <ChevronDown size={18} className={styles.chevronIcon} aria-hidden="true" />
+        </button>
+
+        {hasChanges ? (
+          <button className={styles.button} type="button" onClick={requestReview} disabled={isReviewing}>
+            <RefreshCcw size={18} aria-hidden="true" />
+            {isReviewing ? "Reviewing..." : "Review updated ranking"}
+          </button>
+        ) : null}
       </div>
 
-      {hasChanges ? (
-        <button className={styles.button} type="button" onClick={requestReview} disabled={isReviewing}>
-          <RefreshCcw size={20} aria-hidden="true" />
-          {isReviewing ? "Reviewing..." : "Review updated ranking"}
-        </button>
+      {expanded ? (
+        <div className={styles.copy}>
+          <h3>{review.headline}</h3>
+          <p>{review.summary}</p>
+          <p className={styles.statusBody}>{statusBody}</p>
+          {error ? <p className={styles.error}>{error}</p> : null}
+        </div>
       ) : null}
     </section>
   );

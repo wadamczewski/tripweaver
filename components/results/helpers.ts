@@ -92,20 +92,6 @@ export function formatDateTime(value: string): string {
   }).format(new Date(parsed));
 }
 
-export function formatGeneratedAt(value: string): string {
-  const parsed = Date.parse(value);
-
-  if (Number.isNaN(parsed)) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-GB", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(parsed));
-}
 
 export function formatMode(mode: TransportMode): string {
   return modeLabels[mode] ?? mode;
