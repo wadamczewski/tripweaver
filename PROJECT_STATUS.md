@@ -51,15 +51,51 @@ everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
 
 | Category | Provider | Status |
 |---|---|---|
-| Flights | **Duffel** | Real, wired, self-serve signup works. Current token in `.env.local` is valid but **missing the `air.offer_requests.create` permission** — returns 403. Fix in the Duffel dashboard, not code. |
+| Flights | **Duffel** | **Real, wired, verified working end-to-end** (2026-07-31). Token in `.env.local` now has the `air.offer_requests.create` permission. Returns real offers alongside the demo provider. |
 | Flights | Amadeus | Not usable. Self-serve sandbox was **decommissioned July 17, 2026**; now enterprise-sales-only. Code exists (`lib/providers/flights/amadeus.ts`) but will always report "Missing AMADEUS_CLIENT_ID" without an enterprise deal. |
 | Flights | **TripWeaver Demo Transport** | Fallback, always runs, always succeeds. 4 synthetic routes (direct flight, connecting flight, train+flight via Berlin, overnight bus+flight), priced off traveler count. `lib/providers/transport/demoFlights.ts`. |
 | Hotels | Booking.com Demand API | Not usable. Partner-gated, no credentials, and no accessible self-serve path found. Code exists but needs `bookingCityId` per destination via `TRIPWEAVER_LOCATION_HINTS_JSON` even if credentialed. |
 | Hotels | Skyscanner Hotels | Not usable. Same partner-gating issue as Booking.com. |
-| Hotels | **Hotelbeds / HBX Group API Suite** | **Identified but not implemented.** Verified live: `developer.hotelbeds.com/register` is genuinely self-serve (email/username/password only, free "Evaluation Plan" key, no business required). User has not registered yet. This is the next real integration to build once a key exists — no adapter code written for it yet. |
+| Hotels | **Hotelbeds / HBX Group API Suite** | **Adapter written and wired in (2026-07-31), unverified — blocked on a real key.** `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. Needs `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) plus a `hotelbedsDestinationCode` hint per destination in `TRIPWEAVER_LOCATION_HINTS_JSON` — Hotelbeds destination codes are their own codification, not necessarily IATA. Register at `developer.hotelbeds.com/register` (genuinely self-serve, free "Evaluation Plan", no business required) — user has not registered yet. Once a key + destination codes exist, this needs a live test pass; the request/response shape was built from Hotelbeds' public docs, not verified against the real API. |
 | Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
 | Packages | *(none)* | **Not implemented at all.** `packageProviders = []` in `lib/providers/index.ts`. The Package holidays results tab will always be empty. No demo fallback either. |
 | Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-4o-mini` via `OPENROUTER_API_KEY`). Falls back to a local heuristic scorer if the key is missing or the call fails. `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
+
+**Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
+about if another provider integration hits similar issues:
+1. Token permissions — the original token lacked `air.offer_requests.create`;
+   needed a token with that scope from the Duffel dashboard.
+2. `lib/providers/locations.ts` had its own 3-city hardcoded lookup
+   (`barcelona`/`berlin`/`szczecin` only) completely separate from the ~130-city
+   `lib/cityData.ts` used by the search UI's autocomplete. Any origin/destination
+   outside those 3 cities silently threw "No IATA code configured" and fell
+   through to the demo provider even with a valid token. Fixed by deriving
+   `resolveLocation`'s built-in table from `CITY_DATABASE` instead of a separate
+   list — this generalizes to any real flight/hotel provider added later.
+3. `lib/providers/flights/duffel.ts`'s passenger payload sent `{ type: "child", age }`
+   for child travelers; Duffel's API rejects `type` and `age` together (422
+   `one_of` validation error) — it wants `age` alone for children. Fixed to
+   `{ age }`.
+
+**Demo fallback suppression (2026-07-31):** `lib/search.ts` now suppresses a
+category's demo provider whenever any real provider for that category
+returned results, instead of always blending both. If every real provider for
+a category fails or isn't configured, demo results still show (so the app
+stays demoable). Flights are pure-real now that Duffel works for any of the
+~130 cities in `lib/cityData.ts`; hotels still show demo results, since no
+real accommodation provider works yet.
+
+**Results page redesign (2026-07-31):** the results view was restructured
+end to end — see "What's implemented" below for the current shape. Highlights:
+`TripSummaryRail` (the old single-trip right-side detail panel) was deleted
+entirely; that level of detail already existed per-card via each trip card's
+"Show details" toggle, which now default to **collapsed** (not expanded) so
+the results list stays scannable. `OptimizerPanel` moved from a full-width
+block above the results into a sticky 400px left sidebar. The "Trip
+comparison results" header lost its redundant subtitle/pill/DATES-BUDGET
+card (all duplicated info already shown in the compact summary bar above it)
+and was renamed to just "Results". The destination background image system
+was replaced (see the Background note below).
 
 Mock providers from the original hackathon build (`lib/providers/transport/mock*.ts`,
 `lib/providers/accommodation/mock*.ts`, `lib/providers/packages/mock*.ts`) are
@@ -85,18 +121,38 @@ interface. Treat them as reference/history, not working code.
 (`components/results/*`), trip cards with expandable timeline + cost breakdown,
 compare-up-to-3, save-to-localStorage (`lib/storage.ts`).
 
-**Optimizer**: live weight sliders re-score client-side instantly
-(`lib/scoring.ts`), separate "Trip Optimizer agent" panel that calls the real
-OpenRouter-backed API on demand (button only appears when weights changed
-since the last review — this is the part that replaced a fake hardcoded
-"Agent active" badge from an earlier, disconnected build).
+**Optimizer**: `OptimizerPanel` (weight sliders, comparison-scenario cards,
+score explanation) lives as a sticky **left sidebar** (`lg:grid-cols-[400px_minmax(0,1fr)]`
+in `app/page.tsx`, `lg:sticky lg:top-6` on the panel) that stays in view while
+the results list scrolls beside it — its internal layout was flattened to a
+single column since it now always renders in a fixed 400px rail, not a
+full-width block. Re-scoring happens client-side instantly (`lib/scoring.ts`).
+The separate "Trip Optimizer agent" AI review (`components/optimizer/OptimizerAgentReview.tsx`)
+sits at the top of the right/main column, collapsed to a one-line bar by
+default (icon + truncated headline + status pill + "Review updated ranking"
+button when changes are pending) — click the row to expand the full
+narrative. It calls the real OpenRouter-backed API on demand.
 
 **Search → results flow**: after a successful search, the hero + wizard
 collapse into a compact summary bar (`SearchSummaryBar` in `app/page.tsx`)
 with route/dates/travelers/budget + an "Edit search" button that re-expands
-the wizard, pre-filled. Background image changes to a real photo of the typed
-destination (via LoremFlickr tag search, locked per-destination so it's stable
-across re-renders — not a curated list, works for any city).
+the wizard, pre-filled. The "Weaving transport, stays and packages" loading
+state is a fixed, blurred full-viewport overlay modal (not inline content) so
+the search form stays visible-but-blocked behind it while a search runs.
+
+**Background**: one shared `position: fixed` image+gradient layer rendered
+once at the top of `<main>` (`app/page.tsx`) — covers the hero, the compact
+summary bar, and the results section with a single continuous, non-scrolling
+backdrop (previously three separate `absolute`-positioned images per section,
+which produced a visible seam and scrolled away with their section).
+`lib/useDestinationImages.ts` resolves the typed destination to a Wikipedia
+article (keyless `opensearch` + `media-list` REST endpoints, CORS-enabled,
+no API key) and rotates through up to 5 of that article's real photos
+(filtered to exclude flags/maps/logos/coats-of-arms) every 9s with a
+cross-fade, so the backdrop is an actual, recognizable photo of the
+destination instead of a generic/random stock image. Falls back to
+generic scenic Unsplash photos if a destination has no Wikipedia match or
+the fetch fails.
 
 **Design system**: Tailwind tokens in `tailwind.config.ts` (navy/coral/sage
 palette, `sageDark`/`accentSoft`/`surface` added for contrast fixes), shared
@@ -113,13 +169,13 @@ call failed) instead of silently showing nothing.
 
 - **Package holidays**: zero implementation, not even a demo provider. If you
   want this tab to ever show anything, start here.
-- **Hotelbeds integration**: researched and confirmed viable, no code written.
-  Needs a new file like `lib/providers/accommodations/hotelbeds.ts` following
-  the existing `booking.ts`/`skyscanner-hotels.ts` pattern, registered in
-  `lib/providers/index.ts`.
-- **Duffel permission**: token needs `air.offer_requests.create` scope added
-  in the Duffel dashboard before real flight data will flow (currently 403s
-  and silently falls through to the demo transport provider).
+- **Hotelbeds integration**: code written and wired in but **unverified** — no
+  key exists yet to test against. Register at `developer.hotelbeds.com/register`,
+  add `HOTELBEDS_API_KEY`/`HOTELBEDS_SECRET` to `.env.local`, add a
+  `hotelbedsDestinationCode` hint for at least one destination in
+  `TRIPWEAVER_LOCATION_HINTS_JSON`, then run a real search and fix whatever the
+  live API response shape doesn't match (field names/nesting were built from
+  docs, not a live response).
 - **Amadeus, Booking.com, Skyscanner**: dead ends for an individual/non-business
   user right now (see provider table). Don't spend time on these unless that
   changes.
@@ -131,16 +187,10 @@ call failed) instead of silently showing nothing.
   Also one `EBADENGINE` warning (`eslint-visitor-keys` wants a newer Node).
 - **`budgetMin`** only exists in the Step 3 budget-range slider UI right now
   (`lib/types.ts`, `lib/defaults.ts`, `components/search/SearchPanel.tsx`).
-  It is **not** shown in the review step, the collapsed summary bar, results,
-  or `TripSummaryRail`, and it's not read by scoring, validation, or the real
-  API adapter (which only ever sends the max as `budget`). If you want the
-  range to actually mean something beyond the slider, this needs threading
-  through.
-- **Demo fallback providers always run** alongside real ones, even once real
-  credentials exist for a category — worth deciding later whether real data
-  should suppress the demo provider for that category, or they should keep
-  blending.
-
+  It is **not** shown in the review step, the collapsed summary bar, or
+  results, and it's not read by scoring, validation, or the real API adapter
+  (which only ever sends the max as `budget`). If you want the range to
+  actually mean something beyond the slider, this needs threading through.
 ## Environment setup
 
 Copy the relevant keys into `.env.local` (gitignored, never commit it):
@@ -168,9 +218,11 @@ Full variable list with defaults: `.env.example`.
 
 These are independent enough to hand to separate sessions:
 
-1. **Hotelbeds integration** — register for a key, write the adapter, wire it
-   into `lib/providers/index.ts` alongside the existing accommodation
-   providers.
+1. **Hotelbeds verification** — register for a key at
+   `developer.hotelbeds.com/register`, add credentials + a destination code
+   hint, run a real search, and fix whatever `lib/providers/accommodations/hotelbeds.ts`
+   gets wrong against the live API (adapter is written and wired in but never
+   tested against a real response).
 2. **Package holidays** — design + build from scratch, no existing real or
    demo provider to build on.
 3. **Testing** — add a test runner and at least cover `lib/adapters/*` and
