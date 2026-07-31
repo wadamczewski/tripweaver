@@ -90,7 +90,7 @@ export function AccommodationList({
                   <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-ink/60">
                     {estimateLabel}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sage">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sageDark">
                     <Star className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
                     {option.rating} ({option.reviewCount})
                   </span>

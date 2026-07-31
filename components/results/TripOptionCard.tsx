@@ -5,7 +5,6 @@ import clsx from "clsx";
 import {
   BadgeCheck,
   ChevronDown,
-  ChevronUp,
   ExternalLink,
   Heart,
   Hotel,
@@ -94,7 +93,7 @@ export function TripOptionCard({
             <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-ink/60">
               {isPackage ? "Package bundle" : "Self-organized"}
             </span>
-            <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sage">
+            <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sageDark">
               {estimateLabel}
             </span>
           </div>
@@ -124,8 +123,8 @@ export function TripOptionCard({
                 className={clsx(
                   "inline-flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold transition",
                   isCompared
-                    ? "border-sage/30 bg-sage/10 text-sage"
-                    : "border-line bg-paper text-ink/65 hover:border-sage/30 hover:text-sage",
+                    ? "border-sage/30 bg-sage/10 text-sageDark"
+                    : "border-line bg-paper text-ink/65 hover:border-sage/30 hover:text-sageDark",
                   compareDisabled && !isCompared && "cursor-not-allowed opacity-45 hover:border-line hover:text-ink/65"
                 )}
                 aria-pressed={isCompared}
@@ -189,17 +188,20 @@ export function TripOptionCard({
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-accentDark"
+          className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-accentDark hover:shadow-soft"
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? "Hide details" : "Show details"}
-          {expanded ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
+          <ChevronDown
+            className={clsx("h-4 w-4 transition-transform duration-300", expanded && "rotate-180")}
+            aria-hidden="true"
+          />
         </button>
       </div>
 
       {expanded ? (
-        <div className="grid gap-4 border-t border-line bg-[#fbf8f1] p-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid animate-fade-up gap-4 border-t border-line bg-[#fbf8f1] p-5 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
             <Timeline items={option.timeline} segments={option.transportSegments} estimateLabel={estimateLabel} />
 
@@ -306,7 +308,7 @@ function TripStat({
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-white/70 px-2 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
       <p className="mt-1 truncate text-sm font-bold text-ink">{value}</p>
     </div>
   );
@@ -327,7 +329,7 @@ function DetailLine({
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
         <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
       </div>
     </div>

@@ -111,7 +111,7 @@ export function TripSummaryRail({
           </div>
           <div className="rounded-[8px] bg-ink px-3 py-2 text-center text-white">
             <div className="text-xl font-semibold leading-none">{Math.round(selectedTrip.score)}</div>
-            <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/72">score</div>
+            <div className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-white/72">score</div>
           </div>
         </div>
 

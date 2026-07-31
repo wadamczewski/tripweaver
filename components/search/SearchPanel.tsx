@@ -31,6 +31,9 @@ import { DEFAULT_TRANSPORT_MODES, summarizeTravelers } from "@/lib/defaults";
 import type { AccommodationStandard, Currency, PreferenceKey, SearchCriteria, TransportMode } from "@/lib/types";
 import { validateSearchCriteria } from "@/lib/validation";
 
+import { CityAutocomplete } from "@/components/ui/CityAutocomplete";
+import { Tooltip } from "@/components/ui/Tooltip";
+
 import { RoomAllocator } from "./RoomAllocator";
 import { TravelerSelector } from "./TravelerSelector";
 import {
@@ -250,12 +253,12 @@ export function SearchPanel({
         <section className="min-w-0 bg-[#fbf7ef]">
           <div className="border-b border-line/80 px-5 py-5 sm:px-7">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
+              <div className="animate-fade-up" key={currentStep.id}>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-accentDark">{currentStep.eyebrow}</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-ink">{currentStep.title}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#566273]">{currentStep.description}</p>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-sage/20 bg-sage/10 px-3 py-2 text-sm font-semibold text-sage">
+              <div className="flex items-center gap-2 rounded-full border border-sage/20 bg-sage/10 px-3 py-2 text-sm font-semibold text-sageDark">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 Estimates update after search
               </div>
@@ -263,7 +266,7 @@ export function SearchPanel({
           </div>
 
           <div className="min-w-0 p-5 sm:p-7">
-            <div className="min-h-[420px]">
+            <div className="min-h-[420px] animate-fade-up" key={currentStep.id}>
               {currentStep.id === "route" ? (
                 <RouteStep criteria={criteria} updateCriteria={updateCriteria} />
               ) : null}
@@ -305,7 +308,7 @@ export function SearchPanel({
                 type="button"
                 disabled={activeStep === 0 || loading}
                 onClick={() => setActiveStep((step) => Math.max(0, step - 1))}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-white px-5 text-sm font-bold text-ink transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-35"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-white px-5 text-sm font-bold text-ink transition duration-200 hover:-translate-x-0.5 hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-x-0"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Back
@@ -325,10 +328,16 @@ export function SearchPanel({
 
               <button
                 type="submit"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-ink px-6 text-sm font-bold text-white shadow-soft transition hover:bg-accentDark disabled:cursor-wait disabled:bg-ink/35"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-ink px-6 text-sm font-bold text-white shadow-soft transition duration-200 ease-springy hover:-translate-y-0.5 hover:bg-accentDark hover:shadow-lift active:translate-y-0 disabled:cursor-wait disabled:bg-ink/35 disabled:hover:translate-y-0"
                 disabled={loading}
               >
-                {isLastStep ? <Search className="h-4 w-4" aria-hidden="true" /> : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+                {loading ? (
+                  <Search className="h-4 w-4 animate-pulse" aria-hidden="true" />
+                ) : isLastStep ? (
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                )}
                 {loading ? "Finding options" : isLastStep ? submitLabel : "Continue"}
               </button>
             </div>
@@ -350,9 +359,8 @@ function RouteStep({
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)]">
-          <TextField
+          <CityAutocomplete
             label="Departure city"
-            icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
             value={criteria.origin}
             onChange={(value) => updateCriteria({ origin: value })}
             placeholder="Szczecin"
@@ -362,12 +370,12 @@ function RouteStep({
               <ArrowRight className="h-5 w-5" aria-hidden="true" />
             </div>
           </div>
-          <TextField
+          <CityAutocomplete
             label="Destination"
-            icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
             value={criteria.destination}
             onChange={(value) => updateCriteria({ destination: value })}
             placeholder="Barcelona or Anywhere"
+            allowAnywhere
           />
         </div>
 
@@ -700,31 +708,38 @@ function SwitchTile({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <button
-      type="button"
+    <div
+      role="switch"
+      aria-checked={checked}
+      tabIndex={0}
       className={cn(
-        "flex min-h-20 min-w-0 items-center justify-between gap-3 rounded-[24px] border px-4 py-3 text-left shadow-soft transition",
+        "flex min-h-16 min-w-0 cursor-pointer items-center justify-between gap-3 rounded-[24px] border px-4 py-3 text-left shadow-soft transition hover:shadow-lift",
         checked ? "border-sage/40 bg-white" : "border-line bg-white hover:border-accent/50"
       )}
-      aria-pressed={checked}
       onClick={() => onChange(!checked)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onChange(!checked);
+        }
+      }}
     >
       <span className="flex min-w-0 items-center gap-3">
         <span
           className={cn(
-            "grid h-10 w-10 shrink-0 place-items-center rounded-2xl",
+            "grid h-10 w-10 shrink-0 place-items-center rounded-2xl transition-colors",
             checked ? "bg-sage text-white" : "bg-[#fbf7ef] text-accent"
           )}
         >
           {icon}
         </span>
-        <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-1.5">
           <span className="block text-sm font-bold text-ink">{label}</span>
-          <span className="block text-xs leading-5 text-ink/55">{helper}</span>
+          <Tooltip text={helper} />
         </span>
       </span>
       <SwitchTrack checked={checked} />
-    </button>
+    </div>
   );
 }
 
@@ -741,7 +756,7 @@ function SwitchTrack({ checked }: { checked: boolean }) {
 function BriefLine({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/36">{label}</p>
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/36">{label}</p>
       <p className="mt-1 text-white/82">{value}</p>
     </div>
   );

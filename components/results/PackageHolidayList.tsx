@@ -82,7 +82,7 @@ export function PackageHolidayList({
               <div className="min-w-0 p-5">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   {option.savingBadge ? (
-                    <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sage">
+                    <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sageDark">
                       {option.savingBadge}
                     </span>
                   ) : null}
@@ -268,7 +268,7 @@ function PackageMetric({
 function DetailPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-paper p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
       <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
     </div>
   );
@@ -278,7 +278,7 @@ function Inclusion({ label, active }: { label: string; active: boolean }) {
   return (
     <div className="flex items-center justify-between rounded-md bg-paper px-3 py-2 text-sm">
       <span className="font-medium text-ink/70">{label}</span>
-      <span className={clsx("font-semibold", active ? "text-sage" : "text-ink/35")}>
+      <span className={clsx("font-semibold", active ? "text-sageDark" : "text-ink/35")}>
         {active ? "Included" : "Not included"}
       </span>
     </div>

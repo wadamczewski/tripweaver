@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 
+import { Tooltip } from "@/components/ui/Tooltip";
 import {
   convertMoney,
   formatMoney,
@@ -250,8 +251,8 @@ export function OptimizerPanel({
               <h3 className="text-lg font-semibold text-ink">Comparison checks</h3>
               <p className="text-sm text-ink/62">Five optimizer agents, no new provider search.</p>
             </div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-sage">
-              <CheckCircle2 className="h-4 w-4" />
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-sageDark">
+              <CheckCircle2 className="h-4 w-4 text-sage" />
               Agents ready
             </div>
           </div>
@@ -296,9 +297,9 @@ function WeightSlider({
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-mist text-accentDark">
             <Icon className="h-4 w-4" />
           </span>
-          <span className="min-w-0">
+          <span className="flex min-w-0 items-center gap-1.5">
             <span className="block text-sm font-semibold text-ink">{config.label}</span>
-            <span className="block text-xs leading-5 text-ink/58">{config.caption}</span>
+            <Tooltip text={config.caption} />
           </span>
         </div>
         <span className="rounded-[8px] bg-ink px-2.5 py-1 text-xs font-semibold text-white">{normalized}%</span>
@@ -338,7 +339,7 @@ function ScoreExplanation({
         </div>
         <div className="rounded-[8px] bg-accent px-3 py-2 text-center text-white">
           <div className="text-2xl font-semibold leading-none">{score}</div>
-          <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/78">score</div>
+          <div className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-white/78">score</div>
         </div>
       </div>
 
@@ -430,7 +431,7 @@ function ScenarioButton({
         </div>
         <div className="rounded-[8px] bg-mist px-3 py-2">
           <div className="text-xs text-ink/52">{hasSavings ? "Saves" : "Delta"}</div>
-          <div className={`mt-1 font-semibold ${hasSavings ? "text-sage" : "text-ink"}`}>
+          <div className={`mt-1 font-semibold ${hasSavings ? "text-sageDark" : "text-ink"}`}>
             {hasSavings ? formatMoney(savings) : formatMoney(savings)}
           </div>
         </div>

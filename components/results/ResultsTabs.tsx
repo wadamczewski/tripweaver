@@ -210,7 +210,7 @@ export function ResultsTabs({
                 key={tab.id}
                 type="button"
                 className={clsx(
-                  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition",
+                  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition duration-200",
                   isActive ? "bg-ink text-white shadow-sm" : "text-ink/60 hover:bg-mist hover:text-ink"
                 )}
                 aria-current={isActive ? "page" : undefined}
@@ -235,8 +235,12 @@ export function ResultsTabs({
       {activeTab === "complete" ? (
         <div className="space-y-5">
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label="Recommendation categories">
-            {recommendationTiles.map((tile) => (
-              <div key={tile.id} className="rounded-lg border border-line bg-white/75 p-4 shadow-soft">
+            {recommendationTiles.map((tile, index) => (
+              <div
+                key={tile.id}
+                className="animate-fade-up rounded-lg border border-line bg-white/75 p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+                style={{ animationDelay: `${index * 60}ms` }}
+              >
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/40">{tile.label}</p>
                 <p className="mt-2 truncate text-sm font-semibold text-ink">
                   {tile.option ? tile.option.label : "No match yet"}
@@ -248,23 +252,28 @@ export function ResultsTabs({
 
           {results.tripOptions.length > 0 ? (
             <div className="grid gap-5">
-              {results.tripOptions.map((option) => {
+              {results.tripOptions.map((option, index) => {
                 const isCompared = activeComparedIds.includes(option.id);
                 const compareDisabled = activeComparedIds.length >= maxComparedOptions && !isCompared;
 
                 return (
-                  <TripOptionCard
+                  <div
                     key={option.id}
-                    option={option}
-                    recommendationCategories={recommendationBadges[option.id]}
-                    isSaved={activeSavedIds.includes(option.id)}
-                    isCompared={isCompared}
-                    compareDisabled={compareDisabled}
-                    estimateLabel={estimateLabel}
-                    onToggleSave={toggleSavedTrip}
-                    onToggleCompare={toggleCompare}
-                    onOpenProvider={onOpenProvider}
-                  />
+                    className="animate-fade-up"
+                    style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }}
+                  >
+                    <TripOptionCard
+                      option={option}
+                      recommendationCategories={recommendationBadges[option.id]}
+                      isSaved={activeSavedIds.includes(option.id)}
+                      isCompared={isCompared}
+                      compareDisabled={compareDisabled}
+                      estimateLabel={estimateLabel}
+                      onToggleSave={toggleSavedTrip}
+                      onToggleCompare={toggleCompare}
+                      onOpenProvider={onOpenProvider}
+                    />
+                  </div>
                 );
               })}
             </div>
@@ -358,7 +367,7 @@ function ProviderStatusStrip({ statuses }: { statuses: ProviderStatus[] }) {
           <h2 className="text-sm font-semibold text-ink">Provider agents</h2>
           <p className="mt-1 text-xs text-ink/55">Parallel estimate checks normalized into one comparison.</p>
         </div>
-        <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sage">
+        <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sageDark">
           {statuses.filter((status) => status.state === "complete").length}/{statuses.length} complete
         </span>
       </div>
@@ -410,7 +419,7 @@ function HeaderMetric({
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
         <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
       </div>
     </div>

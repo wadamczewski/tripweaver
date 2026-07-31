@@ -112,7 +112,7 @@ export function Timeline({
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-ink">{getSegmentRoute(segment)}</p>
-                        <span className="rounded-full bg-sage/10 px-2 py-0.5 text-[11px] font-semibold text-sage">
+                        <span className="rounded-full bg-sage/10 px-2 py-0.5 text-xs font-semibold text-sageDark">
                           {formatMode(segment.mode)}
                         </span>
                       </div>

@@ -72,7 +72,7 @@ export function TransportOptionList({
               <div className="min-w-0">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   {option.savingBadge ? (
-                    <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sage">
+                    <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sageDark">
                       {option.savingBadge}
                     </span>
                   ) : null}

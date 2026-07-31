@@ -3,6 +3,7 @@
 import { Armchair, Baby, DoorOpen, Minus, Plus, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Tooltip } from "@/components/ui/Tooltip";
 import type { TravelerGroup } from "@/lib/types";
 
 import {
@@ -156,6 +157,7 @@ export function TravelerSelector({ travelers, onTravelersChange, className }: Tr
                   className="mt-3"
                   icon={<Armchair className="h-4 w-4" aria-hidden="true" />}
                   label="Separate seat"
+                  helper="If off, the infant travels on an adult's lap where the provider allows it, usually at a lower fare"
                   checked={infantSeats[index] ?? false}
                   onChange={(checked) => {
                     const nextSeats = resizeInfantSeatFlags(infantSeats, infantAges.length);
@@ -173,12 +175,14 @@ export function TravelerSelector({ travelers, onTravelersChange, className }: Tr
         <SwitchRow
           icon={<Armchair className="h-4 w-4" aria-hidden="true" />}
           label="Adjacent seats"
+          helper="Require the group to be seated together on transport where the provider allows it"
           checked={travelers.needsAdjacentSeats}
           onChange={(checked) => commit({ needsAdjacentSeats: checked })}
         />
         <SwitchRow
           icon={<DoorOpen className="h-4 w-4" aria-hidden="true" />}
           label="Adjacent rooms"
+          helper="Prefer rooms next to or near each other when more than one room is booked"
           checked={travelers.needsAdjacentRooms}
           onChange={(checked) => commit({ needsAdjacentRooms: checked })}
         />
@@ -231,30 +235,40 @@ function Stepper({
 function SwitchRow({
   icon,
   label,
+  helper,
   checked,
   onChange,
   className
 }: {
   icon: ReactNode;
   label: string;
+  helper?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   className?: string;
 }) {
   return (
-    <button
-      type="button"
+    <div
+      role="switch"
+      aria-checked={checked}
+      tabIndex={0}
       className={cn(
-        "flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-left transition hover:border-accent/50",
+        "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-left transition hover:border-accent/50 hover:shadow-soft",
         checked ? "shadow-soft" : "",
         className
       )}
-      aria-pressed={checked}
       onClick={() => onChange(!checked)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onChange(!checked);
+        }
+      }}
     >
       <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
         <span className={cn("text-ink/45", checked ? "text-accent" : "")}>{icon}</span>
         <span className="truncate">{label}</span>
+        {helper ? <Tooltip text={helper} /> : null}
       </span>
       <span
         className={cn(
@@ -269,6 +283,6 @@ function SwitchRow({
           )}
         />
       </span>
-    </button>
+    </div>
   );
 }

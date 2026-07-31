@@ -221,8 +221,12 @@ export default function Home() {
               ["Berlin airport savings", "Compare Polish and German departures for the same family."],
               ["Age-aware pricing", "The 14-year-old flows into airline, hotel, and package fare rules."],
               ["Complete trip total", "Transport, stay, luggage, transfers, food, insurance, and fees."]
-            ].map(([title, detail]) => (
-              <div key={title} className="rounded-[24px] bg-[#fbf7ef] p-5">
+            ].map(([title, detail], index) => (
+              <div
+                key={title}
+                className="animate-fade-up rounded-[24px] bg-[#fbf7ef] p-5 transition hover:-translate-y-0.5 hover:shadow-soft"
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
                 <p className="text-sm font-semibold text-ink">{title}</p>
                 <p className="mt-2 text-sm leading-6 text-ink/60">{detail}</p>
               </div>
@@ -231,26 +235,34 @@ export default function Home() {
           )}
 
           {status === "loading" && (
-            <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[2rem] border border-line bg-white/70 p-10 text-center shadow-soft">
-              <Loader2 className="h-9 w-9 animate-spin text-accent" />
-              <h2 className="mt-5 text-2xl font-semibold tracking-tight">
+            <div className="flex min-h-[360px] animate-fade-in flex-col items-center justify-center rounded-[2rem] border border-line bg-white/70 p-10 text-center shadow-soft">
+              <div className="relative grid h-16 w-16 place-items-center">
+                <span className="absolute inset-0 animate-ping rounded-full bg-accent/20" />
+                <span className="relative grid h-14 w-14 place-items-center rounded-full bg-accent/10">
+                  <Loader2 className="h-7 w-7 animate-spin text-accent" />
+                </span>
+              </div>
+              <h2 className="mt-6 text-2xl font-semibold tracking-tight">
                 Weaving transport, stays and packages
               </h2>
               <p className="mt-2 max-w-xl text-ink/64">
                 Provider adapters are pricing each traveler separately and checking room occupancy rules.
               </p>
+              <div className="mt-6 h-1.5 w-48 overflow-hidden rounded-full bg-line">
+                <div className="h-full w-1/3 animate-shimmer rounded-full bg-[linear-gradient(90deg,transparent,theme(colors.accent),transparent)] bg-[length:200%_100%]" />
+              </div>
             </div>
           )}
 
           {status === "error" && (
-            <div className="rounded-[2rem] border border-accent/30 bg-accent/5 p-8">
+            <div className="animate-scale-in rounded-[2rem] border border-accent/30 bg-accent/5 p-8">
               <h2 className="text-xl font-semibold">Something needs a second pass</h2>
               <p className="mt-2 text-ink/66">{errors[0]}</p>
             </div>
           )}
 
           {status === "ready" && scoredResults && !featuredTrip && realResults && (
-            <div className="rounded-[2rem] border border-line bg-white/90 p-8 shadow-soft">
+            <div className="animate-scale-in rounded-[2rem] border border-line bg-white/90 p-8 shadow-soft">
               <h2 className="text-xl font-semibold text-ink">No combined trip options yet</h2>
               <p className="mt-2 text-ink/66">
                 None of the configured providers returned results for this search. Check the provider status below.
@@ -262,7 +274,7 @@ export default function Home() {
                     className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper/70 px-4 py-3 text-sm"
                   >
                     <span className="font-semibold text-ink">{provider.providerId}</span>
-                    <span className={provider.ok ? "text-sage" : "text-accentDark"}>
+                    <span className={provider.ok ? "text-sageDark" : "text-accentDark"}>
                       {provider.message ?? (provider.ok ? "OK" : "Failed")}
                     </span>
                   </div>
@@ -272,7 +284,7 @@ export default function Home() {
           )}
 
           {status === "ready" && scoredResults && featuredTrip && realResults && (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="grid animate-fade-up grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
               <div className="min-w-0 space-y-6">
                 <OptimizerPanel
                   weights={weights}

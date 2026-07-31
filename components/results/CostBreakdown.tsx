@@ -40,7 +40,7 @@ export function CostBreakdown({
           <p className="mt-1 text-xs text-ink/55">{estimateLabel} total including required add-ons</p>
         </div>
         <div className="rounded-[0.85rem] border border-line/70 bg-mist/80 px-3 py-2 text-right">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink/45">Line items</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/45">Line items</p>
           <p className="text-sm font-semibold text-ink">{rows.length}</p>
         </div>
       </div>
@@ -122,7 +122,7 @@ function PriceCell({
 }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/40">{label}</p>
       <p
         className={clsx(
           "mt-1 whitespace-nowrap text-sm",
