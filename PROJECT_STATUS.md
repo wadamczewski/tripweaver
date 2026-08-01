@@ -60,7 +60,7 @@ everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
 | Hotels | **Google Hotels (SerpApi)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/accommodations/serpapi-hotels.ts`, needs `SERPAPI_KEY`. Free tier: 250 searches/month, recurring. Not a licensed wholesaler feed — it's SerpApi's structured JSON of Google Hotels' own search results (comparison-only, no booking capability; `bookingUrl` points at the hotel's own site/listing, not an affiliate booking link). Takes a free-text destination (`q`) instead of a per-city code, so — unlike Hotelbeds — it isn't limited to destinations with a hint configured. Some premium chain hotels (seen live: Sofitel, Radisson Blu, Hilton) come back from Google with no rate at all for a given query; these are filtered out rather than shown with a fabricated PLN 0 price. |
 | Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
 | Packages | *(none)* | **Not implemented at all.** `packageProviders = []` in `lib/providers/index.ts`. The Package holidays results tab will always be empty. No demo fallback either. |
-| Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-4o-mini` via `OPENROUTER_API_KEY`). Falls back to a local heuristic scorer if the key is missing or the call fails. As of 2026-08-01 its ranking is authoritative over the displayed trip order (previously computed but discarded — see the dated note below). `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
+| Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-5-mini` via `OPENROUTER_API_KEY`, configurable via `OPENROUTER_MODEL`). Falls back to a local heuristic scorer if the key is missing or the call fails. As of 2026-08-01 its ranking is authoritative over the displayed trip order (previously computed but discarded — see the dated note below). `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
 
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
@@ -313,6 +313,31 @@ metro area, markers overlap heavily at the initial auto-fit zoom level —
 functional (zooming in separates them, standard map UX) but visually
 dense. Worth adding `leaflet.markercluster` if this becomes annoying in
 practice.
+
+**Optimizer agent model upgraded to gpt-5-mini + a real fixed-temperature
+bug it surfaced (2026-08-01).** Compared OpenRouter's actual model
+catalog/pricing (fetched live, not from memory) for this workload
+(~90k input tokens per call — the full uncapped trip-options payload).
+`openai/gpt-4o-mini` costs ~$0.015/search; `openai/gpt-5-mini` is only
+marginally more (~$0.027/search) for a large jump in output quality —
+compare gpt-4o-mini's one-line summaries against gpt-5-mini's actual
+tradeoff reasoning with alternative picks and specific data-gap warnings
+(see a real example logged during verification). `.env.local` and
+`.env.example` now default to `openai/gpt-5-mini`.
+
+Switching models surfaced a real bug: `lib/optimizer/agent-review.ts`
+hardcoded `temperature: 0.2` on every OpenRouter call. Reasoning-tier
+models (`gpt-5-mini`, the `o`-series, etc.) reject a custom temperature
+entirely, and combined with `provider: { require_parameters: true }` —
+which tells OpenRouter to only route to endpoints supporting every
+parameter sent — that turned into a hard 404 with **no fallback route**,
+silently degrading to the local heuristic reviewer instead of erroring
+loudly. Verified live (direct curl against OpenRouter) that removing
+`temperature` fixes it with no loss of behavior, since the strict JSON
+schema already constrains the output shape regardless of temperature.
+Removed the hardcoded value entirely rather than special-casing specific
+models, so this doesn't recur the next time someone picks a different
+model in `OPENROUTER_MODEL`.
 
 **Demo fallback suppression (2026-07-31):** `lib/search.ts` now suppresses a
 category's demo provider whenever any real provider for that category

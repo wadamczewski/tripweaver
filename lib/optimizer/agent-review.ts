@@ -187,7 +187,12 @@ export async function reviewTripOptionsWithAgent(input: ReviewInput): Promise<Op
       body: JSON.stringify({
         model,
         messages: reviewPrompt(payload),
-        temperature: 0.2,
+        // No fixed `temperature` here on purpose: reasoning-tier models
+        // (e.g. openai/gpt-5-mini, o-series) reject a custom temperature
+        // entirely, and combined with `require_parameters: true` below
+        // that turns into a hard 404 with no fallback route — verified
+        // live switching models. The strict JSON schema already
+        // constrains the output shape regardless of temperature.
         provider: {
           require_parameters: true,
         },
