@@ -90,6 +90,29 @@ export type AccommodationOffer = {
   raw?: unknown;
 };
 
+export type PackageOffer = {
+  id: string;
+  providerId: string;
+  providerName: string;
+  providerOfferId: string;
+  tourOperator: string;
+  departureAirport?: string;
+  destination?: string;
+  hotelName: string;
+  hotelRating?: number;
+  nights?: number;
+  boardType?: string;
+  roomType?: string;
+  luggageIncluded?: boolean;
+  airportTransferIncluded?: boolean;
+  totalPrice: Money;
+  cancellationPolicy?: string;
+  savingPercent?: number;
+  imageUrl?: string;
+  bookingUrl?: string;
+  raw?: unknown;
+};
+
 export type TripOption = {
   id: string;
   transport: TransportOffer;
@@ -120,6 +143,7 @@ export type OptimizerAgentReview = {
 export type TripSearchResults = {
   transportOptions: TransportOffer[];
   accommodationOptions: AccommodationOffer[];
+  packageOptions: PackageOffer[];
   tripOptions: TripOption[];
   providerStatuses: ProviderStatus[];
   optimizerReview: OptimizerAgentReview;

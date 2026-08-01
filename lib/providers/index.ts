@@ -6,6 +6,7 @@ import { demoStaysProvider } from "./accommodations/demoStays";
 import { amadeusFlightsProvider } from "./flights/amadeus";
 import { duffelFlightsProvider } from "./flights/duffel";
 import { demoFlightsProvider } from "./transport/demoFlights";
+import { apifyDachPackagesProvider } from "./packages/apify-dach-packages";
 
 // amadeusFlightsProvider, bookingAccommodationProvider, and skyscannerHotelsProvider
 // all require partner-gated credentials most individual developers can't get (see
@@ -25,6 +26,12 @@ export const accommodationProviders = [
   serpapiHotelsProvider,
   demoStaysProvider,
 ];
-export const packageProviders = [];
+// apifyDachPackagesProvider (needs APIFY_API_TOKEN) is a real, live-verified
+// source for German package holidays (TUI, DERTOUR, weg.de,
+// ab-in-den-urlaub.de, alltours) — but it's an unofficial third-party
+// scraper of those operators' own sites, not a licensed feed. See
+// PROJECT_STATUS.md's "Where to pick up work" for the ToS caveat and the
+// still-open TUI official-API and Duffel Stays follow-ups.
+export const packageProviders = [apifyDachPackagesProvider];
 
 export const allProviders = [...transportProviders, ...accommodationProviders, ...packageProviders];

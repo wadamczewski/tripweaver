@@ -1,4 +1,4 @@
-import { accommodationProviders, transportProviders } from "./providers";
+import { accommodationProviders, packageProviders, transportProviders } from "./providers";
 import { ProviderConfigError } from "./providers/http";
 import { convertMoney } from "./providers/fx";
 import { reviewTripOptionsWithAgent, defaultWeights } from "./optimizer/agent-review";
@@ -110,9 +110,16 @@ export async function searchTrip(
   criteria: TripSearchCriteria,
   weights?: OptimizerWeights,
 ): Promise<TripSearchResults> {
-  const [transportSearches, accommodationSearches] = await Promise.all([
+  // Package providers are billed per search (Apify's pay-per-event
+  // pricing) — unlike flights/hotels, only call them when the user
+  // actually wants packages, not on every search regardless of the
+  // toggle.
+  const wantsPackages = criteria.packageHolidays !== false;
+
+  const [transportSearches, accommodationSearches, packageSearches] = await Promise.all([
     Promise.all(transportProviders.map((provider) => searchProvider(provider, criteria))),
     Promise.all(accommodationProviders.map((provider) => searchProvider(provider, criteria))),
+    wantsPackages ? Promise.all(packageProviders.map((provider) => searchProvider(provider, criteria))) : [],
   ]);
 
   const transportOptions = filterByTransportModes(
@@ -122,6 +129,9 @@ export async function searchTrip(
   const accommodationOptions = offersExcludingSuppressedDemo(accommodationSearches, DEMO_ACCOMMODATION_PROVIDER_ID).sort(
     (a, b) => a.totalPrice.amount - b.totalPrice.amount,
   );
+  const packageOptions = packageSearches
+    .flatMap((result) => result.offers)
+    .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
   const tripOptions = filterByBudget(
     combineOptions(transportOptions, accommodationOptions, criteria),
     criteria,
@@ -139,8 +149,11 @@ export async function searchTrip(
   return {
     transportOptions,
     accommodationOptions,
+    packageOptions,
     tripOptions,
-    providerStatuses: [...transportSearches, ...accommodationSearches].map((result) => result.status),
+    providerStatuses: [...transportSearches, ...accommodationSearches, ...packageSearches].map(
+      (result) => result.status,
+    ),
     optimizerReview,
   };
 }

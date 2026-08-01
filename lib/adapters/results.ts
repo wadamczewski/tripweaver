@@ -10,6 +10,7 @@ import { scoreTripOptions } from "../scoring";
 import type {
   AccommodationOption,
   Money,
+  PackageHoliday,
   PriceBreakdown,
   ProviderTravelerCategory,
   RoomOccupancy,
@@ -26,6 +27,7 @@ import type {
 import type {
   AccommodationOffer,
   Money as RealMoney,
+  PackageOffer,
   TransportOffer,
   TripOption as RealTripOption,
   TripSearchResults
@@ -215,6 +217,39 @@ function toAccommodationOption(
   };
 }
 
+function toPackageHoliday(offer: PackageOffer, criteria: SearchCriteria, fallbackImageUrl: string): PackageHoliday {
+  const nights = offer.nights ?? nightsBetween(criteria.departureDate, criteria.returnDate);
+  const totalPrice = toRichMoney(offer.totalPrice, criteria.currency);
+  const travelerPrices = allocateTravelerPrices(totalPrice, criteria.travelers.travelers, "package");
+
+  return {
+    id: offer.id,
+    provider: offer.providerName,
+    tourOperator: offer.tourOperator,
+    departureAirport: offer.departureAirport ?? criteria.origin,
+    destination: offer.destination ?? criteria.destination,
+    hotelName: offer.hotelName,
+    hotelRating: offer.hotelRating ?? 3,
+    durationNights: nights,
+    boardType: offer.boardType ?? "Confirm board type with provider",
+    roomType: offer.roomType ?? "Standard room",
+    roomAllocation: criteria.rooms,
+    luggageIncluded: offer.luggageIncluded ?? false,
+    airportTransferIncluded: offer.airportTransferIncluded ?? false,
+    totalPrice,
+    bookingUrl: offer.bookingUrl,
+    // This provider prices the whole family into totalPrice without
+    // breaking out a distinct child-specific discount — zero rather than
+    // fabricating a number that isn't in the source data.
+    childDiscount: money(0, criteria.currency),
+    travelerPrices,
+    ageNotes: [],
+    savingBadge: offer.savingPercent ? `Save ${Math.round(offer.savingPercent)}%` : undefined,
+    cancellationPolicy: offer.cancellationPolicy ?? "Confirm cancellation terms with the provider before booking.",
+    imageUrl: offer.imageUrl ?? fallbackImageUrl
+  };
+}
+
 function buildTimeline(transport: TransportOption, accommodation: AccommodationOption, criteria: SearchCriteria): TimelineItem[] {
   return [
     {
@@ -298,6 +333,7 @@ export function toSearchResults(
   const accommodationOptions = real.accommodationOptions.map((offer) =>
     toAccommodationOption(offer, criteria, destinationImageUrl)
   );
+  const packageHolidays = real.packageOptions.map((offer) => toPackageHoliday(offer, criteria, destinationImageUrl));
 
   const transportById = new Map(transportOptions.map((option) => [option.id, option]));
   const accommodationById = new Map(accommodationOptions.map((option) => [option.id, option]));
@@ -383,7 +419,7 @@ export function toSearchResults(
     generatedAt: new Date().toISOString(),
     transportOptions,
     accommodationOptions,
-    packageHolidays: [],
+    packageHolidays,
     tripOptions: scoreTripOptions(tripOptions, {
       price: 38,
       travelTime: 22,

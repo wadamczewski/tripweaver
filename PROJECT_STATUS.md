@@ -59,7 +59,7 @@ everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
 | Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price, and a real per-hotel photo via a bulk Content API call — see the "Real per-hotel photos" note below) alongside/suppressing the demo provider per the usual rule. |
 | Hotels | **Google Hotels (SerpApi)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/accommodations/serpapi-hotels.ts`, needs `SERPAPI_KEY`. Free tier: 250 searches/month, recurring. Not a licensed wholesaler feed — it's SerpApi's structured JSON of Google Hotels' own search results (comparison-only, no booking capability; `bookingUrl` points at the hotel's own site/listing, not an affiliate booking link). Takes a free-text destination (`q`) instead of a per-city code, so — unlike Hotelbeds — it isn't limited to destinations with a hint configured. Some premium chain hotels (seen live: Sofitel, Radisson Blu, Hilton) come back from Google with no rate at all for a given query; these are filtered out rather than shown with a fabricated PLN 0 price. |
 | Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
-| Packages | *(none)* | **Not implemented at all.** `packageProviders = []` in `lib/providers/index.ts`. The Package holidays results tab will always be empty. No demo fallback either. |
+| Packages | **DACH Package Holidays (Apify)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/packages/apify-dach-packages.ts`, needs `APIFY_API_TOKEN`. Real bundled prices from TUI/DERTOUR/weg.de/ab-in-den-urlaub.de/alltours — but only for German-region departure airports (see the dated note below); Szczecin returns 0. Unofficial third-party scraper, not a licensed feed — see the ToS caveat in the dated note. No demo fallback still — if this provider fails/returns nothing, the tab is honestly empty rather than showing synthetic data. |
 | Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-5-mini` via `OPENROUTER_API_KEY`, configurable via `OPENROUTER_MODEL`). Falls back to a local heuristic scorer if the key is missing or the call fails. As of 2026-08-01 its ranking is authoritative over the displayed trip order (previously computed but discarded — see the dated note below). `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
 
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
@@ -532,8 +532,11 @@ call failed) instead of silently showing nothing.
 
 ## What's NOT implemented / known gaps
 
-- **Package holidays**: zero implementation, not even a demo provider. If you
-  want this tab to ever show anything, start here.
+- **Package holidays**: real (Apify DACH scraper) as of 2026-08-01, but only
+  for German-region departure airports, and it's an unofficial scraper with
+  real ToS risk — see the dated note and provider table above. A second,
+  official source (TUI) is pending the user's own account approval; see
+  "Where to pick up work" below.
 - **Hotelbeds destination coverage**: only Barcelona has a
   `hotelbedsDestinationCode` in `TRIPWEAVER_LOCATION_HINTS_JSON` right now
   (`"BCN"`). Every other destination falls back to demo stays until someone
@@ -549,12 +552,11 @@ call failed) instead of silently showing nothing.
   mobile layout hasn't been explicitly click-tested in this project.
 - **npm audit**: 12 vulnerabilities (mostly transitive deps), not addressed.
   Also one `EBADENGINE` warning (`eslint-visitor-keys` wants a newer Node).
-- **`budgetMin`** only exists in the Step 3 budget-range slider UI right now
-  (`lib/types.ts`, `lib/defaults.ts`, `components/search/SearchPanel.tsx`).
-  It is **not** shown in the review step, the collapsed summary bar, or
-  results, and it's not read by scoring, validation, or the real API adapter
-  (which only ever sends the max as `budget`). If you want the range to
-  actually mean something beyond the slider, this needs threading through.
+- **`budgetMin`** now flows through to the real search and is enforced
+  against the combined trip total (2026-08-01, see the search-criteria audit
+  note above) — fixed, no longer a gap. Still not shown anywhere outside the
+  Step 3 slider (review step, collapsed summary bar, results) if that's ever
+  wanted.
 ## Environment setup
 
 Copy the relevant keys into `.env.local` (gitignored, never commit it):
@@ -587,8 +589,109 @@ These are independent enough to hand to separate sessions:
    codes for other frequently-searched cities in
    `TRIPWEAVER_LOCATION_HINTS_JSON` so they get real hotels too instead of
    falling back to demo stays.
-2. **Package holidays** — design + build from scratch, no existing real or
-   demo provider to build on.
+2. **Package holidays** — three candidates researched live 2026-08-01.
+   **Candidate B (Apify) is now implemented and verified working
+   end-to-end** — see below. A and C remain not-implemented, blocked on
+   the user's own account/business-contact steps (account creation isn't
+   something an agent does). Full detail:
+
+   **What "package holiday" means in this codebase**: not just a flight +
+   hotel search combined client-side (that's what `combineOptions` in
+   `lib/search.ts` already does for the "Complete trips" tab, using
+   Duffel + Hotelbeds/SerpApi). `PackageHoliday` (`lib/types.ts`) models a
+   genuine **tour-operator bundle**: one seller, one combined
+   `cancellationPolicy`, `tourOperator` name, `airportTransferIncluded`,
+   `childDiscount`. A real fix needs a provider that actually sells bundles
+   under one set of terms, not two services glued together.
+
+   **Candidate A — TUI Developer Portal** (`developer.tui`),
+   *recommended first attempt*: official tour operator, exact semantic
+   match via their "Meta Partner Package Live Search" API (real-time
+   package pricing/availability). Access: register at
+   `signup.developer.tui` (email/username, no business/tax ID seen in the
+   registration flow) — but TUI's partner management team then manually
+   validates and approves the *specific API* you request; timeline/odds
+   unknown, similar to the RateHawk situation from the hotels search
+   earlier this session. Ask for the Meta Partner Package Live Search API
+   specifically, not just a general account. Once approved: build
+   `lib/providers/packages/tui.ts` following the `hotelbedsAccommodationProvider`
+   pattern (`TravelProvider<PackageHoliday-shaped offer>`), register in
+   `packageProviders` (`lib/providers/index.ts`, currently `[]`), map
+   response fields onto `PackageHoliday`. Verify field-by-field against a
+   live call before trusting the docs, same discipline as every other
+   provider in this project.
+
+   **Candidate B — Apify "DACH Package Holiday Price API"** — **real,
+   wired, verified working end-to-end (2026-08-01)**.
+   `lib/providers/packages/apify-dach-packages.ts`, needs `APIFY_API_TOKEN`.
+   Real live bundled prices from 5 actual German tour operators (TUI
+   Germany, DERTOUR, weg.de, ab-in-den-urlaub.de, alltours), GIATA-matched
+   hotels, real photos, real per-operator savings badges — matches exactly
+   what the project's old dead reference file
+   (`lib/providers/packages/mockGermanTourOperatorsProvider.ts`) was
+   clearly modeled after. Pricing: pay-per-event, ~$0.70/1,000 package
+   offers — `lib/search.ts` only calls package providers when
+   `criteria.packageHolidays !== false`, since (unlike flights/hotels)
+   every search here costs real money. **Real caveat, still true**: this
+   is an *unofficial third-party scraper* of those five operators' own
+   websites, not a licensed feed — ToS-violation risk against those sites,
+   and fragile (one live run saw `alltours` fail with a 60s Playwright
+   timeout and `tui` fail with an HTTP 500 from the upstream site — both
+   real, both expected occasionally with this kind of integration).
+
+   **Two real findings from building this, worth knowing before touching
+   this provider again**:
+   1. The actor's dataset mixes real `recordType:"offer"` rows with a
+      `recordType:"run_diagnostic"` summary row (source health/error
+      info, no real price data) — the adapter filters to `"offer"` only.
+      Skipping this filter produces a fake-looking "Unknown operator /
+      Package stay / [currency] 0" entry; caught during live verification,
+      not by reading the docs.
+   2. **These operators are DACH-market (Germany/Austria/Switzerland)
+      tour operators — real results only come back for German-region
+      departure airports** (FRA, MUC, DUS, CGN, etc.), not this app's
+      default Szczecin origin. Live-tested both: Szczecin (SZZ) → 0 real
+      offers (tui down, dertour discarded all 20 offers because it
+      substituted CGN/ZRH for the unsupported SZZ request, weg/aidu
+      returned nothing for that airport); Frankfurt (FRA) → 60 real
+      offers across 3 of 5 operators. This is inherent to the data
+      source, not a bug — worth surfacing in the UI at some point (e.g.
+      a note when packages are requested for a non-DACH origin) but not
+      done yet.
+   3. `cancellation` and `flight.baggage` were `null` across every real
+      record seen from every operator — this actor doesn't reliably
+      surface either, so `cancellationPolicy`/`luggageIncluded` fall back
+      honestly (the same "Confirm cancellation terms with the provider"
+      pattern already used for hotels, and `undefined`→`false` rather
+      than guessing) instead of fabricating them. `childDiscount` is
+      always `0` for the same reason — the source prices the whole family
+      into one total without breaking out a child-specific figure.
+
+   **Candidate C — Duffel Stays** (`duffel.com/stays`): *not a real
+   package-holiday fix even if unlocked* — it's two separate services
+   (flights, stays) sold independently, same shape as what Hotelbeds/
+   SerpApi already provide. Would extend the **Accommodation tab /
+   Complete trips combos** (a third real hotel source, no destination-code
+   limitation like Hotelbeds), not the Packages tab — don't register it in
+   `packageProviders`, register it alongside `hotelbedsAccommodationProvider`
+   in `accommodationProviders` instead. **Corrected 2026-08-01**: their
+   marketing implies "self-serve from the first booking," but verified
+   live against the existing `DUFFEL_ACCESS_TOKEN` — `POST
+   /stays/search` returns `403: "This feature is not enabled for your
+   account. Please contact sales."` So this needs a Duffel sales contact
+   to enable, same business-gate pattern as RateHawk, not the zero-signup
+   win it looked like. Lower priority than A/B given that.
+
+   **Status as of 2026-08-01**: B (Apify) done and live. A (TUI) —
+   registration was started by the user in parallel; once/if approved for
+   the Meta Partner Package Live Search API specifically, build
+   `lib/providers/packages/tui.ts` the same way (`TravelProvider`,
+   register in `packageProviders` alongside `apifyDachPackagesProvider`,
+   verify every field live before trusting the docs) — a second real
+   package source would be a genuine upgrade over the Apify scraper's ToS
+   risk, not a duplicate. C (Duffel Stays) needs a sales contact first,
+   remains the lowest priority — and remember it's an *accommodation*
+   source, not a packages one, if it ever gets unlocked.
 3. **Testing** — add a test runner and at least cover `lib/adapters/*` and
    `lib/scoring.ts` (pure functions, easy to unit test) plus a basic e2e smoke
    test of the search flow.

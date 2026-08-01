@@ -17,6 +17,7 @@ Copy `.env.local` (gitignored) with the credentials in `.env.example`:
 
 - Flights: **Duffel** (real, working — needs a token with the `air.offer_requests.create` permission), Amadeus (enterprise-only, not usable for self-serve accounts)
 - Accommodation: **Hotelbeds** (real, working — self-serve at `developer.hotelbeds.com/register`, needs `HOTELBEDS_API_KEY`/`HOTELBEDS_SECRET` plus a `hotelbedsDestinationCode` hint per destination in `TRIPWEAVER_LOCATION_HINTS_JSON`; only Barcelona has one configured so far), **Google Hotels via SerpApi** (real, working — self-serve at `serpapi.com`, needs `SERPAPI_KEY`; free tier is 250 searches/month; works for any destination, no per-city hint needed; comparison-only, no booking capability), Booking.com Demand API, Skyscanner Hotels, RateHawk (all partner-gated — RateHawk's "self-serve Sandbox" still requires a registered business with a tax ID at signup — not usable without a business account, see `PROJECT_STATUS.md`)
+- Package holidays: **DACH Package Holidays via Apify** (real, working — self-serve at `apify.com`, needs `APIFY_API_TOKEN`; pay-per-event pricing, only queried when the "Package holidays" toggle is on; real bundled prices from TUI/DERTOUR/weg.de/ab-in-den-urlaub.de/alltours, but only for German-region departure airports — see `PROJECT_STATUS.md` for the ToS caveat: this is an unofficial scraper, not a licensed feed)
 - Optimizer agent: OpenRouter (`OPENROUTER_API_KEY`) — falls back to a local heuristic scorer if unset
 
 All provider calls happen server-side (`lib/providers/*`, called from `app/api/trip-search` and `app/api/trip-optimizer-review`). Never call them from client components.
@@ -28,7 +29,7 @@ All provider calls happen server-side (`lib/providers/*`, called from `app/api/t
 - `lib/types.ts` — that rich UI-facing data model
 - `lib/trip/types.ts` — the thinner data model the real provider APIs actually return
 - `lib/adapters/` — translates between the two: real provider results become rich `SearchResults`, with per-traveler price splits and timelines derived (and clearly estimated) from what the providers actually give us, not fabricated
-- `lib/providers/` — real adapters (`flights/`, `accommodations/`) plus reference mock providers (`transport/`, `accommodation/`, `packages/`) kept for local development without API keys
+- `lib/providers/` — real adapters (`flights/`, `accommodations/`, `packages/`) plus reference mock providers (`transport/`, `accommodation/`, and the rest of `packages/`) kept for local development without API keys
 - `lib/optimizer/agent-review.ts` — the Trip Optimizer agent (OpenRouter-backed, heuristic fallback), reviewed via `components/optimizer/OptimizerAgentReview.tsx`, shown as a one-line collapsible bar at the top of the results column (click to expand the full AI narrative). Its ranking is authoritative: `applyAgentRanking()` in `lib/scoring.ts` reorders the displayed trip list to match
 - `lib/useDestinationImages.ts` — resolves the typed destination to real photos via Wikipedia's public REST API (no key needed) and rotates through them behind the whole app as one shared, fixed (non-scrolling) background layer; falls back to generic scenic photos if a destination has no Wikipedia match
 - `components/results/HotelDetailsModal.tsx` — hover/tap modal over each accommodation card's hero photo: full photo gallery (lazy-loaded thumbnails, prev/next), real hotel details (room, board, cancellation policy), and a small OpenStreetMap embed at the hotel's real coordinates (currently just Hotelbeds); portaled to `document.body` over a blurred backdrop so it isn't clipped by the card
@@ -39,7 +40,7 @@ See `docs/unmocking.md` for provider wiring notes.
 
 ## Known limitations
 
-- Package holidays are not yet wired to a real provider (the tab will be empty).
+- Package holidays only return real results for German-region departure airports (FRA, MUC, DUS, CGN, etc.) — the DACH tour operators behind this provider don't serve other origins, so e.g. the app's default Szczecin origin returns 0 packages. No demo fallback, so the tab is honestly empty rather than synthetic.
 - Hotelbeds is real and verified working, but only for destinations with a `hotelbedsDestinationCode` configured in `TRIPWEAVER_LOCATION_HINTS_JSON` (currently just Barcelona) — other destinations fall back to demo stays. Booking.com and Skyscanner remain partner-gated and not usable without a business account.
 - Per-traveler pricing, timelines, and cost-breakdown line items beyond the real transport/accommodation totals are estimates derived from age/category rules, not verified fares — this is flagged in the UI (`costAssumptions` on each trip).
 - Origin/destination cities are resolved to IATA/location codes via `lib/cityData.ts` (~130 major cities). Cities outside that list fail with a clear error rather than guessing a code; add missing ones there or via `TRIPWEAVER_LOCATION_HINTS_JSON`.
