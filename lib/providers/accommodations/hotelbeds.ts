@@ -65,6 +65,14 @@ const IMAGE_BASE_URL = "https://photos.hotelbeds.com/giata/bigger";
 // the payload stays sane. Still plenty for a real gallery.
 const MAX_GALLERY_IMAGES = 30;
 
+// Hotelbeds' Content API silently caps the `codes=` bulk lookup — verified
+// live: sending 187 codes in one call returned content for only the first
+// 100, no error or truncation notice. Below this, every requested code
+// reliably came back. Chunk into batches of this size so every hotel gets
+// a real photo lookup instead of the tail silently falling back to the
+// shared destination image.
+const CONTENT_API_BATCH_SIZE = 100;
+
 function signature(apiKey: string, secret: string) {
   const timestamp = Math.floor(Date.now() / 1000);
   return crypto.createHash("sha256").update(`${apiKey}${secret}${timestamp}`).digest("hex");
@@ -121,11 +129,20 @@ function rankImages(images: HotelbedsImage[] | undefined): string[] {
     .slice(0, MAX_GALLERY_IMAGES);
 }
 
+function chunk<T>(items: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    batches.push(items.slice(i, i + size));
+  }
+  return batches;
+}
+
 // Hotelbeds' availability search returns no images at all — real photos
-// live in the separate Content API. Fetched in one bulk call per search
-// (not one call per hotel) so it doesn't multiply request count. Images are
-// a nice-to-have: any failure here just means offers fall back to whatever
-// the caller stamps on afterward, not a broken search.
+// live in the separate Content API. Fetched in bulk (batched per
+// CONTENT_API_BATCH_SIZE, in parallel) rather than one call per hotel, so
+// it doesn't multiply request count into the hundreds. Images are a
+// nice-to-have: any batch failing just means those offers fall back to
+// whatever the caller stamps on afterward, not a broken search.
 async function fetchHotelImages(
   baseUrl: string,
   apiKey: string,
@@ -135,26 +152,32 @@ async function fetchHotelImages(
   const galleries = new Map<number, string[]>();
   if (codes.length === 0) return galleries;
 
-  try {
-    const response = await fetchJson<HotelbedsContentResponse>(
-      `${baseUrl}/hotel-content-api/1.0/hotels?fields=code,images&codes=${codes.join(",")}&language=ENG`,
-      {
-        headers: {
-          "Api-key": apiKey,
-          "X-Signature": signature(apiKey, secret),
-          Accept: "application/json",
-        },
-      },
-    );
+  const batches = chunk(codes, CONTENT_API_BATCH_SIZE);
 
-    for (const hotel of response.hotels ?? []) {
-      if (hotel.code === undefined) continue;
-      const ranked = rankImages(hotel.images);
-      if (ranked.length > 0) galleries.set(hotel.code, ranked);
-    }
-  } catch {
-    // Ignore — see comment above.
-  }
+  await Promise.all(
+    batches.map(async (batch) => {
+      try {
+        const response = await fetchJson<HotelbedsContentResponse>(
+          `${baseUrl}/hotel-content-api/1.0/hotels?fields=code,images&codes=${batch.join(",")}&language=ENG`,
+          {
+            headers: {
+              "Api-key": apiKey,
+              "X-Signature": signature(apiKey, secret),
+              Accept: "application/json",
+            },
+          },
+        );
+
+        for (const hotel of response.hotels ?? []) {
+          if (hotel.code === undefined) continue;
+          const ranked = rankImages(hotel.images);
+          if (ranked.length > 0) galleries.set(hotel.code, ranked);
+        }
+      } catch {
+        // Ignore — see comment above; other batches still complete.
+      }
+    }),
+  );
 
   return galleries;
 }
@@ -198,7 +221,10 @@ export const hotelbedsAccommodationProvider: TravelProvider<AccommodationOffer> 
     });
 
     const nights = daysBetween(criteria.departureDate, criteria.returnDate);
-    const hotels = (response.hotels?.hotels ?? []).slice(0, 12);
+    // A single Hotelbeds call already returns a bounded set (seen live:
+    // ~190 hotels for Barcelona) — no artificial truncation here. The
+    // results list and trip-combo generation handle the volume.
+    const hotels = response.hotels?.hotels ?? [];
     const codes = hotels.map((hotel) => hotel.code).filter((code): code is number => typeof code === "number");
     const galleries = await fetchHotelImages(baseUrl, apiKey, secret, codes);
 

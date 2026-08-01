@@ -14,6 +14,7 @@ import {
   UsersRound
 } from "lucide-react";
 import type { TransportOption } from "@/lib/types";
+import { useInfiniteReveal } from "@/lib/useInfiniteReveal";
 import {
   DEFAULT_ESTIMATE_LABEL,
   formatCarbon,
@@ -26,7 +27,10 @@ import {
   getTravelerPriceTotal,
   getTransportProviderAction
 } from "./helpers";
+import { InfiniteScrollFooter } from "./InfiniteScrollFooter";
 import type { ProviderActionPayload } from "./types";
+
+const PAGE_SIZE = 20;
 
 type TransportOptionListProps = {
   options: TransportOption[];
@@ -46,6 +50,7 @@ export function TransportOptionList({
   onOpenProvider
 }: TransportOptionListProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const { visibleItems, sentinelRef, hasMore, showMore } = useInfiniteReveal(options, PAGE_SIZE);
 
   function toggleExpanded(id: string) {
     setExpandedIds((current) => {
@@ -61,7 +66,7 @@ export function TransportOptionList({
 
   return (
     <section className={clsx("grid gap-4", className)}>
-      {options.map((option) => {
+      {visibleItems.map((option) => {
         const expanded = expandedIds.has(option.id);
         const saved = savedOptionIds.includes(option.id);
         const action = getTransportProviderAction(option);
@@ -222,6 +227,17 @@ export function TransportOptionList({
           </article>
         );
       })}
+
+      {options.length > 0 ? (
+        <InfiniteScrollFooter
+          sentinelRef={sentinelRef}
+          hasMore={hasMore}
+          visibleCount={visibleItems.length}
+          totalCount={options.length}
+          itemLabel="transport options"
+          onShowMore={showMore}
+        />
+      ) : null}
     </section>
   );
 }

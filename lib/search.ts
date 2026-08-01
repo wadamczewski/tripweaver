@@ -53,11 +53,21 @@ async function searchProvider<TOffer>(provider: TravelProvider<TOffer>, criteria
   }
 }
 
+// Trip combos are a cross-product (transports × accommodations), so unlike
+// the raw provider lists this genuinely can't stay uncapped — with real
+// volumes (seen live: 62 Duffel flights × ~200 hotels across providers)
+// an uncapped cross-product would be 10,000+ combos, well past what's
+// sane to hand the optimizer agent in one prompt. 24 of each side (576
+// combos max) is a ~9x increase over the old 8×8=64 cap while keeping the
+// agent's prompt comfortably inside a small model's context window.
+const MAX_TRANSPORT_COMBOS = 24;
+const MAX_ACCOMMODATION_COMBOS = 24;
+
 function combineOptions(transports: TransportOffer[], accommodations: AccommodationOffer[], criteria: TripSearchCriteria) {
   const currency = criteria.currency;
 
-  return transports.slice(0, 8).flatMap((transport) =>
-    accommodations.slice(0, 8).map((accommodation) => ({
+  return transports.slice(0, MAX_TRANSPORT_COMBOS).flatMap((transport) =>
+    accommodations.slice(0, MAX_ACCOMMODATION_COMBOS).map((accommodation) => ({
       id: `${transport.id}__${accommodation.id}`,
       transport,
       accommodation,

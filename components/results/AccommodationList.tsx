@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import clsx from "clsx";
 import {
   BedDouble,
@@ -16,6 +16,7 @@ import {
   Utensils
 } from "lucide-react";
 import type { AccommodationOption } from "@/lib/types";
+import { useInfiniteReveal } from "@/lib/useInfiniteReveal";
 import {
   DEFAULT_ESTIMATE_LABEL,
   formatMoney,
@@ -23,7 +24,10 @@ import {
   getRoomSummary
 } from "./helpers";
 import { HotelDetailsModal } from "./HotelDetailsModal";
+import { InfiniteScrollFooter } from "./InfiniteScrollFooter";
 import type { ProviderActionPayload } from "./types";
+
+const PAGE_SIZE = 20;
 
 type AccommodationListProps = {
   options: AccommodationOption[];
@@ -45,7 +49,8 @@ export function AccommodationList({
   onOpenProvider
 }: AccommodationListProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const allOptions = [...options, ...rejectedOptions];
+  const allOptions = useMemo(() => [...options, ...rejectedOptions], [options, rejectedOptions]);
+  const { visibleItems, sentinelRef, hasMore, showMore } = useInfiniteReveal(allOptions, PAGE_SIZE);
 
   function toggleExpanded(id: string) {
     setExpandedIds((current) => {
@@ -61,7 +66,7 @@ export function AccommodationList({
 
   return (
     <section className={clsx("grid gap-4", className)}>
-      {allOptions.map((option) => {
+      {visibleItems.map((option) => {
         const expanded = expandedIds.has(option.id);
         const saved = savedOptionIds.includes(option.id);
         const action = getAccommodationProviderAction(option);
@@ -207,6 +212,17 @@ export function AccommodationList({
           </article>
         );
       })}
+
+      {allOptions.length > 0 ? (
+        <InfiniteScrollFooter
+          sentinelRef={sentinelRef}
+          hasMore={hasMore}
+          visibleCount={visibleItems.length}
+          totalCount={allOptions.length}
+          itemLabel="stays"
+          onShowMore={showMore}
+        />
+      ) : null}
     </section>
   );
 }

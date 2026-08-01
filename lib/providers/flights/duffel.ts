@@ -81,7 +81,11 @@ export const duffelFlightsProvider: TravelProvider<TransportOffer> = {
       }),
     });
 
-    return (response.data?.offers ?? []).slice(0, 10).map((offer) => {
+    // Duffel already returns a bounded set per call (typically dozens, not
+    // thousands) — no need to truncate further here. The results list and
+    // trip-combo generation handle the volume (infinite scroll / a capped
+    // cross-product), not this adapter.
+    return (response.data?.offers ?? []).map((offer) => {
       const outbound = sliceSummary(offer.slices?.[0]);
       const inbound = sliceSummary(offer.slices?.[1]);
       const carriers = Array.from(
