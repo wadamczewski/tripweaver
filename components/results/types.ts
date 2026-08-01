@@ -31,7 +31,7 @@ export type ProviderStatus = {
 };
 
 export type RecommendationCategoryId =
-  | "best-overall"
+  | "ai-recommended"
   | "cheapest"
   | "fastest"
   | "package-holiday";

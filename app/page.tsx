@@ -15,7 +15,7 @@ import { ResultsTabs } from "@/components/results/ResultsTabs";
 import { OptimizerAgentReview } from "@/components/optimizer/OptimizerAgentReview";
 import { formatMoney } from "@/lib/currency";
 import { DEFAULT_SEARCH, DEFAULT_WEIGHTS, summarizeTravelers } from "@/lib/defaults";
-import { scoreTripOptions } from "@/lib/scoring";
+import { applyAgentRanking, scoreTripOptions } from "@/lib/scoring";
 import { toTripSearchCriteria, toRealWeights } from "@/lib/adapters/criteria";
 import { toSearchResults } from "@/lib/adapters/results";
 import {
@@ -26,7 +26,7 @@ import {
 } from "@/lib/storage";
 import { useDestinationImages } from "@/lib/useDestinationImages";
 import type { OptimizerWeights, SearchCriteria, SearchResults, TripOption } from "@/lib/types";
-import type { TripSearchResults } from "@/lib/trip/types";
+import type { OptimizerAgentReview as OptimizerAgentReviewResult, TripSearchResults } from "@/lib/trip/types";
 import { validateSearchCriteria } from "@/lib/validation";
 
 type SearchState = "idle" | "loading" | "ready" | "error";
@@ -51,11 +51,17 @@ export default function Home() {
       return null;
     }
 
+    const locallyScored = scoreTripOptions(results.tripOptions, weights);
+
     return {
       ...results,
-      tripOptions: scoreTripOptions(results.tripOptions, weights)
+      // The Trip Optimizer agent's ranking is authoritative over the local
+      // weighted-average sort once it's available — local scoring still
+      // computes each trip's score/explanation, but display order follows
+      // the agent's judgment call.
+      tripOptions: applyAgentRanking(locallyScored, realResults?.optimizerReview)
     };
-  }, [results, weights]);
+  }, [results, weights, realResults?.optimizerReview]);
 
   const featuredTrip = scoredResults?.tripOptions[0];
   const comparedTrips = scoredResults?.tripOptions.filter((trip) => compareIds.includes(trip.id)) ?? [];
@@ -80,7 +86,10 @@ export default function Home() {
       const response = await fetch("/api/trip-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toTripSearchCriteria(nextCriteria))
+        body: JSON.stringify({
+          ...toTripSearchCriteria(nextCriteria),
+          weights: toRealWeights(weights)
+        })
       });
 
       if (!response.ok) {
@@ -102,6 +111,10 @@ export default function Home() {
         "TripWeaver could not reach the provider adapters. Confirm the API keys in .env.local and try again."
       ]);
     }
+  }
+
+  function handleAgentReview(review: OptimizerAgentReviewResult) {
+    setRealResults((current) => (current ? { ...current, optimizerReview: review } : current));
   }
 
   function handleCompare(tripId: string) {
@@ -252,6 +265,7 @@ export default function Home() {
                   tripOptions={realResults.tripOptions}
                   weights={toRealWeights(weights)}
                   initialReview={realResults.optimizerReview}
+                  onReview={handleAgentReview}
                 />
                 <ResultsTabs
                   results={scoredResults}

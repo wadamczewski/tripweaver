@@ -59,7 +59,7 @@ everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
 | Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price, and a real per-hotel photo via a bulk Content API call — see the "Real per-hotel photos" note below) alongside/suppressing the demo provider per the usual rule. |
 | Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
 | Packages | *(none)* | **Not implemented at all.** `packageProviders = []` in `lib/providers/index.ts`. The Package holidays results tab will always be empty. No demo fallback either. |
-| Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-4o-mini` via `OPENROUTER_API_KEY`). Falls back to a local heuristic scorer if the key is missing or the call fails. `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
+| Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-4o-mini` via `OPENROUTER_API_KEY`). Falls back to a local heuristic scorer if the key is missing or the call fails. As of 2026-08-01 its ranking is authoritative over the displayed trip order (previously computed but discarded — see the dated note below). `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
 
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
@@ -138,6 +138,44 @@ amount is charged if you cancel") and `toAccommodationOption` prefers
 them, falling back to the old placeholder only for providers that don't
 supply this data yet.
 
+**Trip Optimizer agent made authoritative (2026-08-01):** the agent
+(`lib/optimizer/agent-review.ts`, real OpenRouter `gpt-4o-mini` call) was
+genuinely running and returning a real, content-aware ranking — verified
+live by logging its raw response — but had zero effect on anything the
+user saw. Three separate, compounding bugs:
+1. The order/scores shown everywhere came from a completely separate,
+   local, deterministic function (`scoreTripOptions` in `lib/scoring.ts`)
+   that has no AI involvement at all. The agent's `rankedTripIds` /
+   `recommendedTripId` were computed and then discarded.
+2. The initial per-search agent call (`lib/search.ts`) used a hardcoded
+   `defaultWeights` constant instead of the user's actual slider weights,
+   so its `appliedWeights` could never match the UI — which meant...
+3. ...the "Trip Optimizer agent" status bar (`OptimizerAgentReview.tsx`)
+   compared current weights against that mismatched `appliedWeights` and
+   showed "Changes pending" from the moment of load, even with no
+   interaction — and even after clicking "Review updated ranking", the
+   refreshed ranking had nowhere to go: `onReview` was never wired to a
+   parent handler.
+
+Fixed by: `searchTrip()` now accepts the real weights and uses them for
+the initial review (`app/api/trip-search/route.ts`, `lib/search.ts`);
+`app/page.tsx` wires `onReview` to update `realResults.optimizerReview`;
+a new `applyAgentRanking()` (`lib/scoring.ts`) reorders the locally-scored
+trip list by the agent's `rankedTripIds`, pinning `recommendedTripId` to
+the front — local scoring still produces the per-trip score/explanation
+text, but *order* now comes from the agent. The "Best overall" tile/badge
+was renamed **"AI recommended"** and now reflects `tripOptions[0]` post
+-reorder instead of re-deriving a local top score. Also fixed:
+`OptimizerAgentReview` never resynced its local `review` state when a
+*new* search produced a new `initialReview` (same mounted component, no
+remount) — added a `useEffect` keyed on the prop so a second search
+doesn't keep showing the first search's stale headline. Verified live:
+raising "Hotel quality" priority and clicking "Review updated ranking"
+changed the top card to a different (pricier, higher-rated) hotel and
+correctly dropped its "Cheapest" badge. `lib/optimizer/agent-review.ts`
+also logs one line per call (`[optimizer-agent] ...`) so this stays
+observable instead of silent.
+
 **Demo fallback suppression (2026-07-31):** `lib/search.ts` now suppresses a
 category's demo provider whenever any real provider for that category
 returned results, instead of always blending both. If every real provider for
@@ -189,11 +227,15 @@ in `app/page.tsx`, `lg:sticky lg:top-6` on the panel) that stays in view while
 the results list scrolls beside it — its internal layout was flattened to a
 single column since it now always renders in a fixed 400px rail, not a
 full-width block. Re-scoring happens client-side instantly (`lib/scoring.ts`).
-The separate "Trip Optimizer agent" AI review (`components/optimizer/OptimizerAgentReview.tsx`)
+The "Trip Optimizer agent" AI review (`components/optimizer/OptimizerAgentReview.tsx`)
 sits at the top of the right/main column, collapsed to a one-line bar by
 default (icon + truncated headline + status pill + "Review updated ranking"
 button when changes are pending) — click the row to expand the full
-narrative. It calls the real OpenRouter-backed API on demand.
+narrative. It calls the real OpenRouter-backed API on demand and, as of
+2026-08-01, **its ranking is authoritative**: `applyAgentRanking()`
+(`lib/scoring.ts`) reorders the displayed trip list by the agent's
+response, and the "AI recommended" tile/badge reflects its actual top
+pick — see the dated note below for how this used to be pure decoration.
 
 **Search → results flow**: after a successful search, the hero + wizard
 collapse into a compact summary bar (`SearchSummaryBar` in `app/page.tsx`)

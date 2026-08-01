@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { searchTrip } from "../../../lib/search";
-import type { TripSearchCriteria } from "../../../lib/trip/types";
+import type { OptimizerWeights, TripSearchCriteria } from "../../../lib/trip/types";
 
 export async function POST(request: Request) {
-  const criteria = (await request.json()) as TripSearchCriteria;
-  const results = await searchTrip(criteria);
+  const { weights, ...criteria } = (await request.json()) as TripSearchCriteria & {
+    weights?: OptimizerWeights;
+  };
+  const results = await searchTrip(criteria, weights);
   return NextResponse.json(results);
 }

@@ -1,4 +1,5 @@
 import type { OptimizerWeights, TripOption } from "./types";
+import type { OptimizerAgentReview } from "./trip/types";
 
 function range(values: number[]) {
   return { min: Math.min(...values), max: Math.max(...values) };
@@ -103,4 +104,35 @@ export function scoreTripOptions(trips: TripOption[], weights: OptimizerWeights)
       };
     })
     .sort((left, right) => right.score - left.score);
+}
+
+// Reorders already-scored trips by the Trip Optimizer agent's ranking
+// (real LLM call or its local heuristic fallback — both produce the same
+// shape). The agent's judgment wins over the local weighted-average sort;
+// trips it didn't rank (a mismatch between requests) keep their local
+// score order at the end rather than disappearing. recommendedTripId is
+// pinned to the very front, since the model isn't guaranteed to always
+// put its top pick first in rankedTripIds.
+export function applyAgentRanking(trips: TripOption[], review?: OptimizerAgentReview | null): TripOption[] {
+  if (!review || review.rankedTripIds.length === 0) return trips;
+
+  const rankIndex = new Map(review.rankedTripIds.map((id, index) => [id, index]));
+  const ordered = [...trips].sort((left, right) => {
+    const leftRank = rankIndex.get(left.id);
+    const rightRank = rankIndex.get(right.id);
+    if (leftRank !== undefined && rightRank !== undefined) return leftRank - rightRank;
+    if (leftRank !== undefined) return -1;
+    if (rightRank !== undefined) return 1;
+    return right.score - left.score;
+  });
+
+  if (review.recommendedTripId) {
+    const recommendedIndex = ordered.findIndex((trip) => trip.id === review.recommendedTripId);
+    if (recommendedIndex > 0) {
+      const [recommended] = ordered.splice(recommendedIndex, 1);
+      ordered.unshift(recommended);
+    }
+  }
+
+  return ordered;
 }

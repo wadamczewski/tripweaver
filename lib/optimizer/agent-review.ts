@@ -169,6 +169,7 @@ export async function reviewTripOptionsWithAgent(input: ReviewInput): Promise<Op
   const payload = { ...input, weights };
 
   if (!process.env.OPENROUTER_API_KEY || input.tripOptions.length === 0) {
+    console.log("[optimizer-agent] heuristic fallback (no OPENROUTER_API_KEY or no trip options)");
     return heuristicReview(payload);
   }
 
@@ -197,11 +198,18 @@ export async function reviewTripOptionsWithAgent(input: ReviewInput): Promise<Op
       }),
     });
 
-    if (!response.ok) return heuristicReview(payload);
+    if (!response.ok) {
+      console.log(`[optimizer-agent] OpenRouter request failed (${response.status}), falling back to heuristic`);
+      return heuristicReview(payload);
+    }
 
     const data = await response.json();
     const text = parseOpenRouterContent(data.choices?.[0]?.message?.content) ?? extractResponseText(data);
     const parsed = text ? JSON.parse(text) : {};
+
+    console.log(
+      `[optimizer-agent] ${model} ranked ${input.tripOptions.length} trips, recommended ${parsed.recommendedTripId ?? "none"}: "${parsed.headline ?? "no headline"}"`,
+    );
 
     return {
       recommendedTripId: parsed.recommendedTripId,

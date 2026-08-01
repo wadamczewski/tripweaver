@@ -240,16 +240,19 @@ export function buildRecommendationBadges(options: TripOption[]): Record<string,
     badgesById[option.id] = [];
   });
 
-  const bestOverall = [...options].sort((a, b) => b.score - a.score)[0];
+  // options is already ordered by the Trip Optimizer agent's ranking
+  // (see applyAgentRanking in lib/scoring.ts) — its top pick is options[0],
+  // not necessarily the highest local score.
+  const aiRecommended = options[0];
   const cheapest = [...options].sort((a, b) => a.totalPrice.amount - b.totalPrice.amount)[0];
   const fastest = [...options].sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes)[0];
   const packageHoliday = options.find((option) => option.kind === "package" || option.packageHoliday);
 
-  if (bestOverall) {
-    badgesById[bestOverall.id]?.push({
-      id: "best-overall",
-      label: "Best overall",
-      description: "Strongest weighted value score"
+  if (aiRecommended) {
+    badgesById[aiRecommended.id]?.push({
+      id: "ai-recommended",
+      label: "AI recommended",
+      description: "Top pick from the Trip Optimizer agent's review of these results"
     });
   }
 
@@ -281,17 +284,19 @@ export function buildRecommendationBadges(options: TripOption[]): Record<string,
 }
 
 export function getRecommendationTiles(options: TripOption[]) {
-  const bestOverall = [...options].sort((a, b) => b.score - a.score)[0];
+  // options is already ordered by the Trip Optimizer agent's ranking
+  // (see applyAgentRanking in lib/scoring.ts).
+  const aiRecommended = options[0];
   const cheapest = [...options].sort((a, b) => a.totalPrice.amount - b.totalPrice.amount)[0];
   const fastest = [...options].sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes)[0];
   const packageHoliday = options.find((option) => option.kind === "package" || option.packageHoliday);
 
   return [
     {
-      id: "best-overall",
-      label: "Best overall",
-      option: bestOverall,
-      metric: bestOverall ? `${bestOverall.score}/100` : "Pending"
+      id: "ai-recommended",
+      label: "AI recommended",
+      option: aiRecommended,
+      metric: aiRecommended ? `${aiRecommended.score}/100 score` : "Pending"
     },
     {
       id: "cheapest",

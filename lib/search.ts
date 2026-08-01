@@ -4,6 +4,7 @@ import { convertMoney } from "./providers/fx";
 import { reviewTripOptionsWithAgent, defaultWeights } from "./optimizer/agent-review";
 import type {
   AccommodationOffer,
+  OptimizerWeights,
   ProviderStatus,
   TransportOffer,
   TravelProvider,
@@ -70,7 +71,10 @@ function combineOptions(transports: TransportOffer[], accommodations: Accommodat
   ) satisfies TripOption[];
 }
 
-export async function searchTrip(criteria: TripSearchCriteria): Promise<TripSearchResults> {
+export async function searchTrip(
+  criteria: TripSearchCriteria,
+  weights?: OptimizerWeights,
+): Promise<TripSearchResults> {
   const [transportSearches, accommodationSearches] = await Promise.all([
     Promise.all(transportProviders.map((provider) => searchProvider(provider, criteria))),
     Promise.all(accommodationProviders.map((provider) => searchProvider(provider, criteria))),
@@ -91,7 +95,7 @@ export async function searchTrip(criteria: TripSearchCriteria): Promise<TripSear
     transportOptions,
     accommodationOptions,
     tripOptions,
-    weights: defaultWeights,
+    weights: weights ?? defaultWeights,
     changeReason: "Initial search",
   });
 

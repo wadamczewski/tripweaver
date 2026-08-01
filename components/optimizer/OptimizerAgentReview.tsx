@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, RefreshCcw, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "./OptimizerAgentReview.module.css";
 import type {
   AccommodationOffer,
@@ -40,6 +40,15 @@ export function OptimizerAgentReview({
   const [reviewedWeights, setReviewedWeights] = useState(() => stableJson(initialReview.appliedWeights));
   const [isReviewing, setIsReviewing] = useState(false);
   const [error, setError] = useState<string | undefined>();
+
+  // A new search produces a brand-new initialReview (different generatedAt)
+  // without remounting this component — resync local state so a second
+  // search doesn't keep showing the first search's stale headline/summary.
+  useEffect(() => {
+    setReview(initialReview);
+    setReviewedWeights(stableJson(initialReview.appliedWeights));
+  }, [initialReview]);
+
   const currentWeights = useMemo(() => stableJson(weights), [weights]);
   const hasChanges = currentWeights !== reviewedWeights;
   const statusLabel = isReviewing ? "Agent working" : hasChanges ? "Changes pending" : "Agent complete";
