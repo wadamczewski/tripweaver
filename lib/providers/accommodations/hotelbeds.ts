@@ -173,8 +173,15 @@ async function fetchHotelImages(
           const ranked = rankImages(hotel.images);
           if (ranked.length > 0) galleries.set(hotel.code, ranked);
         }
-      } catch {
-        // Ignore — see comment above; other batches still complete.
+      } catch (error) {
+        // Nice-to-have — see comment above — but log it: a silent swallow
+        // here previously masked a real, session-wide problem (Hotelbeds'
+        // Content API test-account quota running out), which looked like
+        // a UI bug (every hotel showing the shared destination photo)
+        // rather than what it actually was.
+        console.log(
+          `[hotelbeds-images] batch of ${batch.length} codes failed: ${error instanceof Error ? error.message : error}`,
+        );
       }
     }),
   );

@@ -153,16 +153,65 @@ export function TripOptionCard({
           </div>
         </div>
 
-        <aside className="flex min-w-[15rem] flex-col justify-between rounded-lg bg-mist p-4 lg:items-end">
-          <div className="w-full lg:text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/62">{estimateLabel}</p>
-            <p className="mt-2 text-3xl font-bold tracking-normal text-ink">{formatMoney(option.totalPrice)}</p>
-            <p className="mt-1 text-sm font-medium text-ink/60">{formatMoney(option.pricePerPerson)} per person</p>
+        <aside
+          className="relative flex min-w-[15rem] flex-col justify-between overflow-hidden rounded-lg p-4 lg:items-end"
+          style={
+            option.accommodation.imageUrl
+              ? {
+                  backgroundImage: `url(${option.accommodation.imageUrl})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center"
+                }
+              : undefined
+          }
+        >
+          {option.accommodation.imageUrl ? (
+            <div
+              className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/70 to-ink/40"
+              aria-hidden="true"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-mist" aria-hidden="true" />
+          )}
+
+          <div className="relative w-full lg:text-right">
+            <p
+              className={clsx(
+                "text-xs font-semibold uppercase tracking-[0.18em]",
+                option.accommodation.imageUrl ? "text-white/80" : "text-ink/62"
+              )}
+            >
+              {estimateLabel}
+            </p>
+            <p
+              className={clsx(
+                "mt-2 text-3xl font-bold tracking-normal",
+                option.accommodation.imageUrl ? "text-white" : "text-ink"
+              )}
+            >
+              {formatMoney(option.totalPrice)}
+            </p>
+            <p
+              className={clsx(
+                "mt-1 text-sm font-medium",
+                option.accommodation.imageUrl ? "text-white/75" : "text-ink/60"
+              )}
+            >
+              {formatMoney(option.pricePerPerson)} per person
+            </p>
           </div>
-          <div className="mt-5 grid w-full grid-cols-3 gap-2 text-center">
-            <MiniMetric label="Score" value={`${option.score}`} />
-            <MiniMetric label="Time" value={formatDuration(option.totalDurationMinutes)} />
-            <MiniMetric label="Transfers" value={`${option.transfers}`} />
+          <div className="relative mt-5 grid w-full grid-cols-3 gap-2 text-center">
+            <MiniMetric label="Score" value={`${option.score}`} onPhoto={Boolean(option.accommodation.imageUrl)} />
+            <MiniMetric
+              label="Time"
+              value={formatDuration(option.totalDurationMinutes)}
+              onPhoto={Boolean(option.accommodation.imageUrl)}
+            />
+            <MiniMetric
+              label="Transfers"
+              value={`${option.transfers}`}
+              onPhoto={Boolean(option.accommodation.imageUrl)}
+            />
           </div>
         </aside>
       </div>
@@ -305,9 +354,9 @@ function TripStat({
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: string }) {
+function MiniMetric({ label, value, onPhoto = false }: { label: string; value: string; onPhoto?: boolean }) {
   return (
-    <div className="rounded-md bg-white/70 px-2 py-2">
+    <div className={clsx("rounded-md px-2 py-2", onPhoto ? "bg-white/90 backdrop-blur-sm" : "bg-white/70")}>
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/60">{label}</p>
       <p className="mt-1 truncate text-sm font-bold text-ink">{value}</p>
     </div>
