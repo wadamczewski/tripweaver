@@ -22,6 +22,7 @@ import {
   getAccommodationProviderAction,
   getRoomSummary
 } from "./helpers";
+import { HotelDetailsModal } from "./HotelDetailsModal";
 import type { ProviderActionPayload } from "./types";
 
 type AccommodationListProps = {
@@ -74,7 +75,7 @@ export function AccommodationList({
             )}
           >
             <div className="grid gap-0 lg:grid-cols-[13rem_1fr_auto]">
-              <div className="relative min-h-[12rem] bg-mist lg:min-h-full">
+              <HotelDetailsModal option={option} className="min-h-[12rem] overflow-hidden bg-mist lg:min-h-full">
                 <img
                   src={option.imageUrl}
                   alt={option.name}
@@ -83,7 +84,7 @@ export function AccommodationList({
                 <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-ink shadow-sm">
                   {option.provider}
                 </div>
-              </div>
+              </HotelDetailsModal>
 
               <div className="min-w-0 p-5">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -125,13 +126,6 @@ export function AccommodationList({
                   </button>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <StayMetric icon={BedDouble} label="Room" value={option.roomType} />
-                  <StayMetric icon={UsersRound} label="Allocation" value={getRoomSummary(option.roomAllocation)} />
-                  <StayMetric icon={Utensils} label="Board" value={option.boardType} />
-                  <StayMetric icon={ShieldCheck} label="Cancellation" value={option.cancellationPolicy} />
-                </div>
-
                 {option.occupancyExplanation || option.childPolicy || option.unavailableReason ? (
                   <p className="mt-4 rounded-md bg-paper p-3 text-sm leading-5 text-ink/65">
                     {option.unavailableReason ?? option.occupancyExplanation ?? option.childPolicy}
@@ -160,44 +154,53 @@ export function AccommodationList({
             </div>
 
             {expanded ? (
-              <div className="grid gap-4 border-t border-line bg-paper/70 p-5 xl:grid-cols-[1fr_0.8fr]">
-                <div className="rounded-lg border border-line bg-white/80 p-4">
-                  <h3 className="text-sm font-semibold text-ink">Room allocation</h3>
-                  <div className="mt-3 grid gap-2">
-                    {option.roomAllocation.map((room) => (
-                      <div key={room.roomId} className="rounded-md bg-paper p-3 text-sm text-ink/70">
-                        <span className="font-semibold text-ink">{room.roomId}</span>: {room.adults} adult
-                        {room.adults === 1 ? "" : "s"}
-                        {room.childAges.length > 0 ? `, child ages ${room.childAges.join(", ")}` : ""}
-                        {room.infantAges.length > 0 ? `, infant ages ${room.infantAges.join(", ")}` : ""}
-                      </div>
-                    ))}
-                  </div>
+              <div className="grid gap-4 border-t border-line bg-paper/70 p-5">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <StayMetric icon={BedDouble} label="Room" value={option.roomType} />
+                  <StayMetric icon={UsersRound} label="Allocation" value={getRoomSummary(option.roomAllocation)} />
+                  <StayMetric icon={Utensils} label="Board" value={option.boardType} />
+                  <StayMetric icon={ShieldCheck} label="Cancellation" value={option.cancellationPolicy} />
                 </div>
 
-                <div className="rounded-lg border border-line bg-white/80 p-4">
-                  <h3 className="text-sm font-semibold text-ink">Open at provider</h3>
-                  {action ? (
-                    <a
-                      href={action.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-flex w-full items-center justify-between rounded-md border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent/30 hover:text-accentDark"
-                      onClick={() => onOpenProvider?.(action)}
-                    >
-                      {action.label}
-                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      className="mt-3 inline-flex w-full cursor-not-allowed items-center justify-between rounded-md border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink/60"
-                      disabled
-                    >
-                      Open at provider
-                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  )}
+                <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+                  <div className="rounded-lg border border-line bg-white/80 p-4">
+                    <h3 className="text-sm font-semibold text-ink">Room allocation</h3>
+                    <div className="mt-3 grid gap-2">
+                      {option.roomAllocation.map((room) => (
+                        <div key={room.roomId} className="rounded-md bg-paper p-3 text-sm text-ink/70">
+                          <span className="font-semibold text-ink">{room.roomId}</span>: {room.adults} adult
+                          {room.adults === 1 ? "" : "s"}
+                          {room.childAges.length > 0 ? `, child ages ${room.childAges.join(", ")}` : ""}
+                          {room.infantAges.length > 0 ? `, infant ages ${room.infantAges.join(", ")}` : ""}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-line bg-white/80 p-4">
+                    <h3 className="text-sm font-semibold text-ink">Open at provider</h3>
+                    {action ? (
+                      <a
+                        href={action.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex w-full items-center justify-between rounded-md border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent/30 hover:text-accentDark"
+                        onClick={() => onOpenProvider?.(action)}
+                      >
+                        {action.label}
+                        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        className="mt-3 inline-flex w-full cursor-not-allowed items-center justify-between rounded-md border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink/60"
+                        disabled
+                      >
+                        Open at provider
+                        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : null}

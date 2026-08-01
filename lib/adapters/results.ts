@@ -178,7 +178,7 @@ function toTransportOption(offer: TransportOffer, criteria: SearchCriteria): Tra
 function toAccommodationOption(
   offer: AccommodationOffer,
   criteria: SearchCriteria,
-  imageUrl: string
+  fallbackImageUrl: string
 ): AccommodationOption {
   const roomAllocation: RoomOccupancy[] = criteria.rooms;
   const nights = offer.nights ?? nightsBetween(criteria.departureDate, criteria.returnDate);
@@ -193,14 +193,20 @@ function toAccommodationOption(
     nights,
     roomType: offer.roomName ?? "Standard room",
     roomAllocation,
-    boardType: "Confirm board type with provider",
+    boardType: offer.boardType ?? "Confirm board type with provider",
     totalPrice: toRichMoney(offer.totalPrice, criteria.currency),
     taxesIncluded: true,
-    cancellationPolicy: "Confirm cancellation terms with the provider before booking.",
+    cancellationPolicy: offer.cancellationPolicy ?? "Confirm cancellation terms with the provider before booking.",
     occupancyExplanation: `${getRoomSummary(roomAllocation)} as requested.`,
     bookingUrl: offer.bookingUrl,
     available: true,
-    imageUrl
+    // Each provider's own photo when it has one (e.g. Hotelbeds' Content API,
+    // Skyscanner's listing image); only demo/undecorated offers fall back to
+    // the shared destination backdrop, so real hotels don't all look identical.
+    imageUrl: offer.imageUrl ?? fallbackImageUrl,
+    imageUrls: offer.imageUrls && offer.imageUrls.length > 0 ? offer.imageUrls : [offer.imageUrl ?? fallbackImageUrl],
+    latitude: offer.latitude,
+    longitude: offer.longitude
   };
 }
 

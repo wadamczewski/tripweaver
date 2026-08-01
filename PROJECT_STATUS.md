@@ -56,7 +56,7 @@ everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
 | Flights | **TripWeaver Demo Transport** | Fallback, always runs, always succeeds. 4 synthetic routes (direct flight, connecting flight, train+flight via Berlin, overnight bus+flight), priced off traveler count. `lib/providers/transport/demoFlights.ts`. |
 | Hotels | Booking.com Demand API | Not usable. Partner-gated, no credentials, and no accessible self-serve path found. Code exists but needs `bookingCityId` per destination via `TRIPWEAVER_LOCATION_HINTS_JSON` even if credentialed. |
 | Hotels | Skyscanner Hotels | Not usable. Same partner-gating issue as Booking.com. |
-| Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price) alongside/suppressing the demo provider per the usual rule. |
+| Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price, and a real per-hotel photo via a bulk Content API call — see the "Real per-hotel photos" note below) alongside/suppressing the demo provider per the usual rule. |
 | Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
 | Packages | *(none)* | **Not implemented at all.** `packageProviders = []` in `lib/providers/index.ts`. The Package holidays results tab will always be empty. No demo fallback either. |
 | Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-4o-mini` via `OPENROUTER_API_KEY`). Falls back to a local heuristic scorer if the key is missing or the call fails. `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
@@ -86,8 +86,57 @@ before touching the app — confirmed both `"PMI"` (Palma de Mallorca) and
 API, returning real hotels with real prices. Added `"BCN"` to
 `TRIPWEAVER_LOCATION_HINTS_JSON` and confirmed the full pipeline end to end
 in the browser (real hotel name/room/price rendering with a "Hotelbeds"
-badge on the trip card, demo stays correctly suppressed). The adapter code
-itself needed no changes — it was correct on the first live test.
+badge on the trip card, demo stays correctly suppressed). The search
+adapter code itself needed no changes — it was correct on the first live
+test.
+
+**Real per-hotel photos (2026-07-31):** every accommodation card — from
+every provider, not just Hotelbeds — was silently showing the exact same
+shared destination photo. `lib/adapters/results.ts`'s `toAccommodationOption`
+unconditionally stamped one shared `imageUrl` param onto every offer,
+ignoring each offer's own `imageUrl` field entirely; only the (unusable)
+Skyscanner adapter ever set that field. Hotelbeds' availability search
+returns zero image data — real photos live in their separate Content API
+(`hotel-content-api/1.0/hotels`), which supports a bulk `codes=` query
+param, so `lib/providers/accommodations/hotelbeds.ts` now fetches images
+for all returned hotels in one extra request per search (not one per
+hotel), preferring a "GEN" (general/exterior) shot over room/bar/pool
+close-ups. `toAccommodationOption` now prefers `offer.imageUrl` and only
+falls back to the shared destination photo when a provider doesn't supply
+one (currently: demo stays, Booking, Amadeus-adjacent — anything without
+real per-listing images).
+
+**Hotel details modal (2026-07-31→08-01):** Hotelbeds' Content API returns
+up to 30 images per hotel, not just one — `rankImages`/`fetchHotelImages`
+in `lib/providers/accommodations/hotelbeds.ts` already carried the full
+ranked list through as `imageUrls` on the offer (added alongside the
+per-hotel photo fix above), it just wasn't exposed in the UI. Added
+`components/results/HotelDetailsModal.tsx`, wrapping each accommodation
+card's hero photo with an always-visible affordance badge (hover-only
+would exclude touch/keyboard users; the badge reads "+N photos" when a
+gallery exists, "Details" otherwise). Opens a centered modal over a
+blurred, dimmed full-page backdrop (`backdrop-blur-md` + body-scroll lock)
+— rendered through a `createPortal` into `document.body` so it isn't
+clipped by the card's own `overflow-hidden`. Left pane: the photo gallery
+(prev/next arrows, counter, lazy-loaded thumbnail strip; only mounts the
+current image ±1 neighbor so a 30-photo gallery doesn't fire 30 requests
+on open). Right pane: the hotel's real details (room, board type,
+cancellation policy, occupancy, total price) plus a small OpenStreetMap
+embed (keyless, no API needed) centered on the hotel's real
+latitude/longitude — Hotelbeds' availability search returns coordinates
+directly, no extra request needed. Closes on Escape, backdrop click, or
+the close button; providers without coordinates show a "location not
+provided" placeholder instead of a fabricated map.
+
+Wiring this up surfaced that `boardType` and `cancellationPolicy` on
+`AccommodationOption` were never real data — `lib/adapters/results.ts`
+hardcoded the same placeholder string for every offer regardless of
+provider. Hotelbeds' rate object actually returns both (`boardName`,
+`cancellationPolicies`), so `hotelbeds.ts` now derives real values
+(e.g. "Free cancellation until 4 Sep 2026" or "Non-refundable — the full
+amount is charged if you cancel") and `toAccommodationOption` prefers
+them, falling back to the old placeholder only for providers that don't
+supply this data yet.
 
 **Demo fallback suppression (2026-07-31):** `lib/search.ts` now suppresses a
 category's demo provider whenever any real provider for that category

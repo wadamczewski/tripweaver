@@ -31,6 +31,7 @@ All provider calls happen server-side (`lib/providers/*`, called from `app/api/t
 - `lib/providers/` — real adapters (`flights/`, `accommodations/`) plus reference mock providers (`transport/`, `accommodation/`, `packages/`) kept for local development without API keys
 - `lib/optimizer/agent-review.ts` — the Trip Optimizer agent (OpenRouter-backed, heuristic fallback), reviewed via `components/optimizer/OptimizerAgentReview.tsx`, shown as a one-line collapsible bar at the top of the results column (click to expand the full AI narrative)
 - `lib/useDestinationImages.ts` — resolves the typed destination to real photos via Wikipedia's public REST API (no key needed) and rotates through them behind the whole app as one shared, fixed (non-scrolling) background layer; falls back to generic scenic photos if a destination has no Wikipedia match
+- `components/results/HotelDetailsModal.tsx` — hover/tap modal over each accommodation card's hero photo: full photo gallery (lazy-loaded thumbnails, prev/next), real hotel details (room, board, cancellation policy), and a small OpenStreetMap embed at the hotel's real coordinates (currently just Hotelbeds); portaled to `document.body` over a blurred backdrop so it isn't clipped by the card
 
 See `docs/unmocking.md` for provider wiring notes.
 

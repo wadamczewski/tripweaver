@@ -154,6 +154,13 @@ export type AccommodationOption = {
   available: boolean;
   unavailableReason?: string;
   imageUrl: string;
+  // Full photo set for the hover gallery, when the provider has more than
+  // one photo. Falls back to [imageUrl] in the UI when absent.
+  imageUrls?: string[];
+  // Only set when the provider returns real coordinates (currently
+  // Hotelbeds); the details modal shows a map only when both are present.
+  latitude?: number;
+  longitude?: number;
 };
 
 export type PackageHoliday = {

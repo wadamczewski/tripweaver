@@ -78,8 +78,14 @@ export type AccommodationOffer = {
   nights?: number;
   totalPrice: Money;
   bookingUrl?: string;
+  boardType?: string;
   cancellationPolicy?: string;
+  latitude?: number;
+  longitude?: number;
   imageUrl?: string;
+  // Full photo set when the provider has more than one (e.g. Hotelbeds'
+  // Content API); imageUrl is always imageUrls[0] when both are present.
+  imageUrls?: string[];
   raw?: unknown;
 };
 
