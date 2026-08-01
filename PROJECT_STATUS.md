@@ -1,6 +1,6 @@
 # TripWeaver — Project Status
 
-Last updated: 2026-07-31. This file is meant to give a fresh chat session (or a
+Last updated: 2026-08-01. This file is meant to give a fresh chat session (or a
 different person) full context without re-reading the whole history. Read this
 first before touching code.
 
