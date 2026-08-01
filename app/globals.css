@@ -108,3 +108,27 @@ select:focus-visible {
 .range-input::-moz-range-thumb:active {
   transform: scale(1.12);
 }
+
+.hotel-marker {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: #c85f45;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(16, 32, 51, 0.45);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.hotel-marker:hover {
+  transform: scale(1.25);
+}
+
+.hotel-marker--selected {
+  background: #102033;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(16, 32, 51, 0.55);
+}

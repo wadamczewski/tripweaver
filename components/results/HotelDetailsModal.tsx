@@ -348,7 +348,7 @@ function DetailsModal({
   );
 }
 
-function DetailTile({
+export function DetailTile({
   icon: Icon,
   label,
   value

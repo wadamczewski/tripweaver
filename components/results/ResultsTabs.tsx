@@ -13,8 +13,11 @@ import {
   TrainFront
 } from "lucide-react";
 import type { SearchResults, TripOption } from "@/lib/types";
+import { useInfiniteReveal } from "@/lib/useInfiniteReveal";
 import { AccommodationList } from "./AccommodationList";
+import { AllHotelsMap } from "./AllHotelsMap";
 import { CompareBar } from "./CompareBar";
+import { InfiniteScrollFooter } from "./InfiniteScrollFooter";
 import { PackageHolidayList } from "./PackageHolidayList";
 import { TransportOptionList } from "./TransportOptionList";
 import { TripOptionCard } from "./TripOptionCard";
@@ -26,6 +29,8 @@ import {
   getResultsCounts
 } from "./helpers";
 import type { ProviderActionPayload, ProviderStatus, ResultsTabId, SaveTarget } from "./types";
+
+const TRIP_PAGE_SIZE = 20;
 
 type ResultsTabsProps = {
   results: SearchResults;
@@ -86,6 +91,12 @@ export function ResultsTabs({
   );
   const recommendationTiles = useMemo(() => getRecommendationTiles(results.tripOptions), [results.tripOptions]);
   const comparedOptions = results.tripOptions.filter((option) => activeComparedIds.includes(option.id));
+  const {
+    visibleItems: visibleTripOptions,
+    sentinelRef: tripSentinelRef,
+    hasMore: hasMoreTrips,
+    showMore: showMoreTrips
+  } = useInfiniteReveal(results.tripOptions, TRIP_PAGE_SIZE);
 
   function selectTab(tab: ResultsTabId) {
     setInternalTab(tab);
@@ -223,7 +234,7 @@ export function ResultsTabs({
 
           {results.tripOptions.length > 0 ? (
             <div className="grid gap-5">
-              {results.tripOptions.map((option, index) => {
+              {visibleTripOptions.map((option, index) => {
                 const isCompared = activeComparedIds.includes(option.id);
                 const compareDisabled = activeComparedIds.length >= maxComparedOptions && !isCompared;
 
@@ -247,6 +258,15 @@ export function ResultsTabs({
                   </div>
                 );
               })}
+
+              <InfiniteScrollFooter
+                sentinelRef={tripSentinelRef}
+                hasMore={hasMoreTrips}
+                visibleCount={visibleTripOptions.length}
+                totalCount={results.tripOptions.length}
+                itemLabel="complete trips"
+                onShowMore={showMoreTrips}
+              />
             </div>
           ) : (
             <EmptyState title="No complete trips" body="The provider estimates did not return a combined option yet." />
@@ -286,21 +306,26 @@ export function ResultsTabs({
 
       {activeTab === "accommodation" ? (
         results.accommodationOptions.length > 0 || results.rejectedAccommodation.length > 0 ? (
-          <AccommodationList
-            options={results.accommodationOptions}
-            rejectedOptions={results.rejectedAccommodation}
-            savedOptionIds={activeSavedIds}
-            estimateLabel={estimateLabel}
-            onToggleSave={(option) =>
-              onToggleSave?.({
-                kind: "accommodation",
-                id: option.id,
-                label: option.name,
-                option
-              })
-            }
-            onOpenProvider={onOpenProvider}
-          />
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <AllHotelsMap options={[...results.accommodationOptions, ...results.rejectedAccommodation]} />
+            </div>
+            <AccommodationList
+              options={results.accommodationOptions}
+              rejectedOptions={results.rejectedAccommodation}
+              savedOptionIds={activeSavedIds}
+              estimateLabel={estimateLabel}
+              onToggleSave={(option) =>
+                onToggleSave?.({
+                  kind: "accommodation",
+                  id: option.id,
+                  label: option.name,
+                  option
+                })
+              }
+              onOpenProvider={onOpenProvider}
+            />
+          </div>
         ) : (
           <EmptyState title="No accommodation estimates" body="Stay provider estimates are still pending." />
         )

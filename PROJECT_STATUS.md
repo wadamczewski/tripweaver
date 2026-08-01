@@ -57,6 +57,7 @@ everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
 | Hotels | Booking.com Demand API | Not usable. Partner-gated, no credentials, and no accessible self-serve path found. Code exists but needs `bookingCityId` per destination via `TRIPWEAVER_LOCATION_HINTS_JSON` even if credentialed. |
 | Hotels | Skyscanner Hotels | Not usable. Same partner-gating issue as Booking.com. |
 | Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price, and a real per-hotel photo via a bulk Content API call — see the "Real per-hotel photos" note below) alongside/suppressing the demo provider per the usual rule. |
+| Hotels | **Google Hotels (SerpApi)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/accommodations/serpapi-hotels.ts`, needs `SERPAPI_KEY`. Free tier: 250 searches/month, recurring. Not a licensed wholesaler feed — it's SerpApi's structured JSON of Google Hotels' own search results (comparison-only, no booking capability; `bookingUrl` points at the hotel's own site/listing, not an affiliate booking link). Takes a free-text destination (`q`) instead of a per-city code, so — unlike Hotelbeds — it isn't limited to destinations with a hint configured. Some premium chain hotels (seen live: Sofitel, Radisson Blu, Hilton) come back from Google with no rate at all for a given query; these are filtered out rather than shown with a fabricated PLN 0 price. |
 | Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
 | Packages | *(none)* | **Not implemented at all.** `packageProviders = []` in `lib/providers/index.ts`. The Package holidays results tab will always be empty. No demo fallback either. |
 | Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-4o-mini` via `OPENROUTER_API_KEY`). Falls back to a local heuristic scorer if the key is missing or the call fails. As of 2026-08-01 its ranking is authoritative over the displayed trip order (previously computed but discarded — see the dated note below). `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
@@ -175,6 +176,143 @@ changed the top card to a different (pricier, higher-rated) hotel and
 correctly dropped its "Cheapest" badge. `lib/optimizer/agent-review.ts`
 also logs one line per call (`[optimizer-agent] ...`) so this stays
 observable instead of silent.
+
+**Second hotel source: Google Hotels via SerpApi (2026-08-01).** Went
+looking for a second real accommodation source; most candidates turned
+out to be dead ends on closer inspection, worth recording so this isn't
+re-litigated:
+- **RateHawk** — has a real self-serve "API Sandbox" program (Q4 2025+),
+  but the *partner registration* that gates it requires a company name,
+  legal entity, and tax ID (verified by reading their actual registration
+  form) — not usable for an individual, same category of dead end as
+  Booking.com/Skyscanner despite the "self-serve" marketing.
+- **StayAPI** / **StayingAPI** — both genuinely individual-friendly at
+  signup (just email/password, verified by reading their actual signup
+  forms), but StayingAPI's free tier is a 300-credit *one-time* trial
+  (90 days) and StayAPI's renewal terms couldn't be confirmed even from
+  their own docs; both are OTA-price-intelligence products of uncertain
+  ToS fit for a consumer-facing app.
+- **Amadeus Hotel Search** — same self-service portal decommissioned
+  July 17, 2026 (see the Amadeus flights entry above) — dead, despite
+  SEO blog posts still claiming it has a free tier.
+- **Aviationstack / FlightAware** (flights, not hotels, but checked in
+  the same pass) — free tiers exist but these are schedule/tracking
+  APIs with no fare data at all, wrong category entirely.
+
+Landed on **SerpApi's Google Hotels API**: OAuth signup (GitHub/Google),
+no business info, 250 searches/month free and *recurring* (not a trial).
+`lib/providers/accommodations/serpapi-hotels.ts` — takes a free-text `q`
+destination (no per-city code needed, unlike Hotelbeds), returns
+`gps_coordinates` (feeds the hotel details modal's map directly) and a
+real `images` array (feeds the photo gallery). Filters `properties` to
+`type === "hotel"` (the free-text query also returns vacation rentals)
+and drops any hotel with no `total_rate` at all — verified live that
+Google Hotels genuinely omits pricing for some premium chains (Sofitel,
+Radisson Blu, Hilton Diagonal Mar all came back rate-less for the same
+Barcelona query) rather than always returning a number; showing those as
+PLN 0 would've been a fabricated price. `boardType`/`cancellationPolicy`
+aren't available from this source and fall back to the usual placeholder
+text. Registered in `lib/providers/index.ts` alongside Hotelbeds — both
+run on every hotel search and are combined/suppressed against demo stays
+per the usual rule.
+
+**Removed artificial per-provider result caps + infinite scroll (2026-08-01).**
+Every adapter was silently truncating real API responses to a round
+number — Duffel `.slice(0, 10)`, Hotelbeds `.slice(0, 12)`, SerpApi
+`.slice(0, 12)` — that had nothing to do with what the APIs actually
+return. Checked live: a single Duffel call returns **62** flight offers,
+a single Hotelbeds call returns **187** hotels, both already bounded by
+the provider's own per-call response size (no pagination needed to get
+those numbers). Removed the caps in `lib/providers/flights/duffel.ts`,
+`lib/providers/accommodations/hotelbeds.ts`, and
+`lib/providers/accommodations/serpapi-hotels.ts` — those lists now
+reflect real, uncapped provider responses (SerpApi still fetches only
+one page per search, deliberately, to conserve its 250-search/month free
+quota — see the comment in that adapter).
+
+`combineOptions()` (`lib/search.ts`) is a genuine exception: it's a
+transport × accommodation **cross-product**, so with real volumes
+(62 × ~200) an uncapped combine would generate 10,000+ trip options —
+not something any LLM prompt or browser tab should render. Raised its
+per-side cap from 8×8=64 to `MAX_TRANSPORT_COMBOS`/`MAX_ACCOMMODATION_COMBOS`
+= 24×24 = **576** (a ~9x increase), which is the *full, uncapped* set
+handed to the Trip Optimizer agent — no further slicing happens before
+`reviewTripOptionsWithAgent` sees it. Verified live: a real search
+returned 576 trip options and the agent (`gpt-4o-mini`) still completed
+in ~9s and returned a sensible top-10 `rankedTripIds` (the model chooses
+how many to actually rank; nothing forces it to rank all 576, which is
+the right behavior — a "top 10 picks" list is what a recommendation
+should look like, not a full reordering of the tail).
+
+Added `lib/useInfiniteReveal.ts` (IntersectionObserver-based, no new
+dependency) + `components/results/InfiniteScrollFooter.tsx`, wired into
+all three result lists (`ResultsTabs` complete-trips grid,
+`AccommodationList`, `TransportOptionList`) — each now renders only the
+first 20 items and reveals 20 more per scroll/click, instead of mounting
+all 576/197/62 cards at once. The footer always includes a visible
+"Show more" button alongside the scroll-triggered auto-load, both because
+it's the more accessible path for keyboard users and because it's the
+only path that's verifiable in this project's own automated browser
+tooling — that tool's tab reports `document.visibilityState: "hidden"`
+and `hasFocus: false`, which suspends `IntersectionObserver` callbacks
+per Chromium's own behavior, so scroll-triggered loading could be
+verified as *correctly wired* (sentinel positioned on-screen, observer
+correctly created) but not *fired* in that harness. Works normally in a
+real, focused, visible tab.
+
+**Follow-up bug from the above (2026-08-01): Hotelbeds Content API silently
+caps bulk image lookups at ~100 codes.** Uncapping Hotelbeds to 187 hotels
+broke the per-hotel photo gallery for the ~87 hotels past that cutoff —
+they silently fell back to the shared destination photo (multiple
+different hotel cards showing the identical hero image), because
+`fetchHotelImages`'s single `codes=` bulk call to
+`hotel-content-api/1.0/hotels` returns real content for only the first
+~100 codes with no error or truncation flag. Verified live: 187 codes in,
+exactly 100 hotels' content back. Fixed by chunking the codes into
+`CONTENT_API_BATCH_SIZE = 100`-sized batches and fetching them in
+parallel (`Promise.all`), merging into one gallery map — verified live,
+all 187 hotels now get a real, unique multi-photo gallery (previously 0
+without images now, previously ~87 fell back to the shared photo). Costs
+roughly one extra parallel Content API round-trip per search (search
+latency went from ~9s to ~14s for a 187-hotel Barcelona search) — worth
+watching if this becomes noticeable for very large destinations.
+
+**All-hotels map view (2026-08-01).** Added a "Show all N on map" button
+(top of the Accommodation tab, `components/results/AllHotelsMap.tsx`) that
+plots every already-fetched accommodation option with real coordinates
+(currently Hotelbeds + SerpApi, ~197/197 in a live Barcelona search) as
+pins on one zoomable map — reuses the exact `results.accommodationOptions`
+/`rejectedAccommodation` arrays already in state, no new API calls.
+Clicking a pin shows that hotel's real details and photos (room, board,
+cancellation, price, photo strip) in a side pane, using data already on
+the option — nothing fetched on click either.
+
+Added `leaflet` + `react-leaflet` (MIT, no API key, same OpenStreetMap
+tile source already used for the single-hotel map) — the single-hotel
+`<iframe>` embed approach couldn't do multiple markers or real zoom
+controls. `components/results/HotelMapCanvas.tsx` is the actual Leaflet
+canvas, dynamically imported with `ssr: false` (Leaflet touches `window`
+at import time, which breaks Next.js SSR if imported directly). Markers
+are plain CSS-styled `divIcon`s (`.hotel-marker` in `app/globals.css`)
+rather than Leaflet's default marker images, which need a webpack
+asset-path workaround in Next.js for no benefit here.
+
+Layout is `lg:grid-cols-[1.5fr_1fr]` — verified live the rendered ratio
+is exactly 1.5 (map pane 710px vs details pane 474px on a 1280px-wide
+modal), i.e. the map genuinely gets 50% more space than the details pane,
+as requested. **Real bug caught during verification:** the modal was
+initially rendered inline (not portaled), so an ancestor's CSS put its
+`fixed` positioning thousands of pixels down the page instead of pinned
+to the viewport — fixed by portaling into `document.body` via
+`createPortal`, the same pattern `HotelDetailsModal` already uses. Worth
+remembering for any future full-screen overlay in this app: `position:
+fixed` is only reliably viewport-relative from a portal at `document.body`.
+
+Not implemented: marker clustering. With ~200 hotels concentrated in one
+metro area, markers overlap heavily at the initial auto-fit zoom level —
+functional (zooming in separates them, standard map UX) but visually
+dense. Worth adding `leaflet.markercluster` if this becomes annoying in
+practice.
 
 **Demo fallback suppression (2026-07-31):** `lib/search.ts` now suppresses a
 category's demo provider whenever any real provider for that category
