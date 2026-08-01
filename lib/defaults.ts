@@ -94,8 +94,15 @@ export const DEFAULT_SEARCH: SearchCriteria = {
     needsAdjacentRooms: true
   }),
   rooms: createDefaultRooms(),
+  // Budget was never actually enforced against search results until now
+  // (see lib/search.ts's filterByBudget) — it was silently ignored, so this
+  // 8000 default went unnoticed even though real converted totals for this
+  // exact default route/family/4-star combo run 8,095-15,015 PLN. Widened
+  // so the out-of-the-box demo search doesn't return zero results while
+  // still meaningfully constraining (not maxed out at the slider's 20,000
+  // ceiling, which would make the default demonstrate nothing).
   budget: {
-    amount: 8000,
+    amount: 12000,
     currency: "PLN"
   },
   budgetMin: {

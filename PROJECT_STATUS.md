@@ -339,6 +339,104 @@ Removed the hardcoded value entirely rather than special-casing specific
 models, so this doesn't recur the next time someone picks a different
 model in `OPENROUTER_MODEL`.
 
+**Trip card hero photo + known issue: Hotelbeds Content API test quota
+exhausted (2026-08-01).** Added the accommodation's hero photo as a
+background to each "Complete trips" card's price panel (`TripOptionCard.tsx`
+`<aside>`), with a dark gradient overlay and white text for legibility —
+same `option.accommodation.imageUrl` field the card already carried,
+falls back to the shared destination photo (existing behavior) when a
+provider has no photo for that listing.
+
+While verifying this live, found every visible card was showing the
+*same* fallback photo despite different hotel names — looked like a
+rendering bug in the new code, but traced it to something else entirely:
+**Hotelbeds' Content API test-account image quota is currently
+exhausted** (`403 Forbidden: {"error":"Quota exceeded"}`, confirmed via
+server logs). All 187/187 Hotelbeds hotels in a fresh search have no
+`imageUrl` right now — this affects every place that shows Hotelbeds
+photos (`AccommodationList`, `HotelDetailsModal`, `AllHotelsMap`, and now
+this card), not something newly broken by this change. Confirmed the
+card code itself is correct: SerpApi-sourced hotels (unaffected — their
+images come from the search response directly, no separate Content API
+call) still show real photos correctly. The previous fully-silent
+per-batch catch in `fetchHotelImages` was masking this — it now logs the
+actual error (`[hotelbeds-images] batch of N codes failed: ...`) instead
+of swallowing it, so a real outage doesn't read as a UI bug next time.
+Nothing to fix code-side; this resolves whenever Hotelbeds' test quota
+resets (check the Hotelbeds developer portal for the reset window if it
+doesn't clear on its own).
+
+**Search criteria audit: 5 of 11 form fields had zero effect on results
+(2026-08-01).** Same class of bug as the earlier disconnected optimizer
+agent — `toTripSearchCriteria()` mapped these onto `TripSearchCriteria`,
+but no provider ever read them back off the object. Verified live
+(not just by reading code) for each:
+
+- **Accommodation standard** (Any/Apartment/3★/4★/5★) — requesting
+  `accommodationStars: 5` returned 198 hotels spanning all of 1★-5★.
+  **Fixed**: SerpApi has a real, documented `hotel_class` param —
+  verified live, requesting 5★ now returns only genuine 5★ results.
+  Hotelbeds is documented to support `filter.minCategory`/`maxCategory`
+  too, but **couldn't verify live** — see the quota note above, which
+  turned out to affect Hotelbeds' core search endpoint too, not just
+  images. Follow-up once quota resets.
+- **Preferred transport** (Flight/Train/Bus/Car/Ferry/Transfer) —
+  requesting `transportModes: ["train"]` still returned 62 Duffel
+  flights, 0 trains. **Fixed**: `lib/search.ts` now filters
+  `transportOptions` by `offer.mode ∈ transportModes`. Honest limit:
+  Duffel is flights-only and there's no real train/bus/car/ferry
+  provider in this codebase — selecting only those modes now correctly
+  returns 0 real results (verified live) rather than silently
+  substituting flights, but it can't manufacture data that doesn't
+  exist. One interaction worth knowing: demo transport (which does have
+  a `mode: "bus"` route) stays suppressed whenever *any* real transport
+  provider succeeds, even for an unrelated mode — so a train/bus-only
+  search when Duffel is working returns a genuinely empty state rather
+  than falling back to a demo bus estimate. Not changed; a deliberate,
+  separate design choice from `offersExcludingSuppressedDemo`, flagged
+  here in case it's worth revisiting later.
+- **Budget** (min/max) — never sent to any provider at all; UI/display
+  only. **Fixed**: since budget describes the *whole trip*, not one
+  category, enforcing it against a single provider's own price filter
+  would be wrong (e.g. capping the hotel alone to the full trip budget).
+  Instead `lib/search.ts` filters the *combined* `tripOptions` totals
+  against `budget`/`budgetMin` after combining. Verified live: 264
+  unfiltered trips → 5 at `budget=6000`, all genuinely ≤6000.
+  Surfaced a real side effect: `DEFAULT_SEARCH`'s budget (8000 PLN,
+  `lib/defaults.ts`) was never realistic for the default
+  route/family/4★ combo — real converted totals run 8,095-15,015 PLN —
+  it just never mattered before because budget did nothing. Raised the
+  default to 12,000 PLN so the out-of-the-box demo search doesn't return
+  zero results.
+- **Checked luggage** — was stamping `luggageIncluded` to match the
+  toggle on *every* offer regardless of the fare's real policy, rather
+  than reflecting reality. **Fixed**: Duffel returns real per-passenger
+  baggage data (`slices[].segments[].passengers[].baggages`, with
+  `type: "checked"|"carry_on"`) — `duffel.ts` now reads that instead of
+  fabricating it. Verified against raw Duffel data directly (not just
+  the app's output). The luggage-fee *estimate* in
+  `lib/adapters/results.ts` now only applies when the traveler said they
+  need checked luggage AND the real fare doesn't include it — previously
+  it charged the fee any time `luggageIncluded` was falsy, regardless of
+  whether the toggle even mattered.
+- **Optimization priorities** (Cheapest/Shortest/Fewest transfers/Lowest
+  carbon/Hotel quality/All-inclusive checkboxes) — never left the search
+  form component; not even passed into `toTripSearchCriteria`. **Fixed**:
+  added `weightsFromPreferences()` (`lib/adapters/criteria.ts`), mapping
+  each selected preference onto the matching `OptimizerWeights` dimension
+  (allInclusive has no matching axis — it's a board-type preference, not
+  a ranking one — and stays unmapped). `app/page.tsx` now sets this as
+  the OptimizerPanel's starting weights at search time instead of always
+  resetting to the same fixed default. Verified live: selecting only
+  "Lowest carbon footprint" produced sliders
+  `{price:10, travelTime:10, convenience:10, hotelQuality:10, sustainability:40}`
+  instead of the old fixed 38/22/18/14/8 regardless of checkbox state.
+- **Flexible dates** — still not wired to any real provider. Neither
+  Duffel nor Hotelbeds/SerpApi support a single-call "nearby dates"
+  query; doing this for real means multiple date-shifted requests per
+  search (extra latency/API-quota cost per search). Not implemented —
+  scoped out as a larger follow-up, not a quick fix like the others here.
+
 **Demo fallback suppression (2026-07-31):** `lib/search.ts` now suppresses a
 category's demo provider whenever any real provider for that category
 returned results, instead of always blending both. If every real provider for

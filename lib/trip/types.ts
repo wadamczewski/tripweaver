@@ -22,6 +22,7 @@ export type TripSearchCriteria = {
   rooms: RoomRequest[];
   currency: CurrencyCode;
   budget?: number;
+  budgetMin?: number;
   transportModes?: Array<"flight" | "train" | "bus" | "car" | "ferry" | "transfer">;
   checkedLuggage?: boolean;
   packageHolidays?: boolean;

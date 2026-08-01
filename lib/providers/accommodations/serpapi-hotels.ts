@@ -65,6 +65,13 @@ export const serpapiHotelsProvider: TravelProvider<AccommodationOffer> = {
       }
     }
 
+    // Real, documented SerpApi param — verified live. accommodationStars is
+    // only set for the exact 3/4/5-star tiers (see toTripSearchCriteria);
+    // "Any stay"/"Apartment" leave it unset, matching "no star filter".
+    if (criteria.accommodationStars) {
+      params.set("hotel_class", String(criteria.accommodationStars));
+    }
+
     const response = await fetchJson<SerpApiHotelsResponse>(`${SERPAPI_BASE_URL}?${params.toString()}`);
 
     if (response.error) {

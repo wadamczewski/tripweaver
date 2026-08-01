@@ -2,6 +2,15 @@ import type { TransportOffer, TravelProvider, TripSearchCriteria } from "../../t
 import { compactText, fetchJson, money, optionalEnv, requiredEnv } from "../http";
 import { requireIata } from "../locations";
 
+type DuffelBaggage = {
+  type?: string;
+  quantity?: number;
+};
+
+type DuffelSegmentPassenger = {
+  baggages?: DuffelBaggage[];
+};
+
 type DuffelOffer = {
   id: string;
   total_amount?: string;
@@ -13,6 +22,7 @@ type DuffelOffer = {
     destination?: { iata_code?: string };
     segments?: Array<{
       operating_carrier?: { name?: string; iata_code?: string };
+      passengers?: DuffelSegmentPassenger[];
     }>;
   }>;
 };
@@ -37,6 +47,16 @@ function passengers(criteria: TripSearchCriteria) {
   const children = criteria.travelers.childAges.map((age) => ({ age }));
   const infants = Array.from({ length: criteria.travelers.infants }, () => ({ type: "infant_without_seat" }));
   return [...adults, ...children, ...infants];
+}
+
+// Duffel returns real per-passenger baggage allowances on every segment
+// (segment.passengers[].baggages, e.g. [{type:"checked",quantity:1}]) — use
+// that instead of assuming the search toggle describes the fare's actual
+// policy. Checks only the first slice/segment/passenger since baggage
+// allowance is consistent across a single cabin-class booking.
+function hasCheckedBaggage(offer: DuffelOffer): boolean {
+  const baggages = offer.slices?.[0]?.segments?.[0]?.passengers?.[0]?.baggages ?? [];
+  return baggages.some((bag) => bag.type === "checked" && (bag.quantity ?? 0) > 0);
 }
 
 function sliceSummary(slice?: DuffelSlice) {
@@ -109,7 +129,7 @@ export const duffelFlightsProvider: TravelProvider<TransportOffer> = {
         durationMinutes: parseDurationMinutes(offer.slices?.[0]?.duration),
         stops: outbound.stops,
         totalPrice: money(offer.total_amount, offer.total_currency ?? criteria.currency),
-        luggageIncluded: criteria.checkedLuggage,
+        luggageIncluded: hasCheckedBaggage(offer),
         operatingCarriers: carriers,
         raw: offer,
       };

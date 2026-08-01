@@ -16,7 +16,7 @@ import { OptimizerAgentReview } from "@/components/optimizer/OptimizerAgentRevie
 import { formatMoney } from "@/lib/currency";
 import { DEFAULT_SEARCH, DEFAULT_WEIGHTS, summarizeTravelers } from "@/lib/defaults";
 import { applyAgentRanking, scoreTripOptions } from "@/lib/scoring";
-import { toTripSearchCriteria, toRealWeights } from "@/lib/adapters/criteria";
+import { toTripSearchCriteria, toRealWeights, weightsFromPreferences } from "@/lib/adapters/criteria";
 import { toSearchResults } from "@/lib/adapters/results";
 import {
   loadSavedTrips,
@@ -82,13 +82,19 @@ export default function Home() {
 
     setStatus("loading");
 
+    // Step 3's "Optimization priorities" checkboxes previously had zero
+    // effect anywhere — this makes them the search's actual starting
+    // weights instead of always resetting to the same fixed default.
+    const nextWeights = weightsFromPreferences(nextCriteria.preferences);
+    setWeights(nextWeights);
+
     try {
       const response = await fetch("/api/trip-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...toTripSearchCriteria(nextCriteria),
-          weights: toRealWeights(weights)
+          weights: toRealWeights(nextWeights)
         })
       });
 

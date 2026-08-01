@@ -129,7 +129,12 @@ function toTransportOption(offer: TransportOffer, criteria: SearchCriteria): Tra
   const durationMinutes = offer.durationMinutes ?? 240;
   const departureTime = criteria.departureDate;
   const arrivalTime = addMinutes(`${criteria.departureDate}T00:00:00.000Z`, durationMinutes);
-  const luggagePrice = offer.luggageIncluded ? money(0, criteria.currency) : moneyFromPln(120, criteria.currency);
+  // offer.luggageIncluded now reflects the airline's real baggage allowance
+  // (see duffel.ts), not the search toggle — only add an estimated fee when
+  // the traveler actually said they need checked luggage and the real fare
+  // doesn't already include it. If they don't need it, no fee either way.
+  const luggagePrice =
+    offer.luggageIncluded || !criteria.checkedLuggage ? money(0, criteria.currency) : moneyFromPln(120, criteria.currency);
 
   const segment: TransportSegment = {
     id: `${offer.id}-segment`,

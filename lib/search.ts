@@ -29,6 +29,31 @@ function offersExcludingSuppressedDemo<TOffer>(
     .flatMap((result) => result.offers);
 }
 
+// The only real transport provider (Duffel) is flights-only — there's no
+// real train/bus/car/ferry data behind this app. Filtering here means an
+// unchecked "Flight" mode honestly excludes flights (previously it had no
+// effect at all — Duffel ran regardless of what was selected) rather than
+// silently returning results the user excluded; it can't manufacture real
+// non-flight results that don't exist.
+function filterByTransportModes(offers: TransportOffer[], modes: TripSearchCriteria["transportModes"]) {
+  if (!modes || modes.length === 0) return offers;
+  return offers.filter((offer) => modes.includes(offer.mode));
+}
+
+// budget/budgetMin describe the whole trip, not one category — enforced
+// here against the combined transport+accommodation total, not pushed into
+// any single provider's own price filter (which would incorrectly cap, say,
+// the hotel alone to the full trip budget).
+function filterByBudget(trips: TripOption[], criteria: TripSearchCriteria) {
+  if (criteria.budget === undefined && criteria.budgetMin === undefined) return trips;
+
+  return trips.filter((trip) => {
+    if (criteria.budget !== undefined && trip.totalPrice.amount > criteria.budget) return false;
+    if (criteria.budgetMin !== undefined && trip.totalPrice.amount < criteria.budgetMin) return false;
+    return true;
+  });
+}
+
 async function searchProvider<TOffer>(provider: TravelProvider<TOffer>, criteria: TripSearchCriteria) {
   try {
     const offers = await provider.search(criteria);
@@ -90,15 +115,17 @@ export async function searchTrip(
     Promise.all(accommodationProviders.map((provider) => searchProvider(provider, criteria))),
   ]);
 
-  const transportOptions = offersExcludingSuppressedDemo(transportSearches, DEMO_TRANSPORT_PROVIDER_ID).sort(
-    (a, b) => a.totalPrice.amount - b.totalPrice.amount,
-  );
+  const transportOptions = filterByTransportModes(
+    offersExcludingSuppressedDemo(transportSearches, DEMO_TRANSPORT_PROVIDER_ID),
+    criteria.transportModes,
+  ).sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
   const accommodationOptions = offersExcludingSuppressedDemo(accommodationSearches, DEMO_ACCOMMODATION_PROVIDER_ID).sort(
     (a, b) => a.totalPrice.amount - b.totalPrice.amount,
   );
-  const tripOptions = combineOptions(transportOptions, accommodationOptions, criteria).sort(
-    (a, b) => a.totalPrice.amount - b.totalPrice.amount,
-  );
+  const tripOptions = filterByBudget(
+    combineOptions(transportOptions, accommodationOptions, criteria),
+    criteria,
+  ).sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
 
   const optimizerReview = await reviewTripOptionsWithAgent({
     criteria,
