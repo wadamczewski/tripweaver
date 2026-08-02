@@ -17,8 +17,14 @@ npm install
 npm run dev
 ```
 
-No API keys are required to run it — every category has a working demo
-fallback (see below), so the app is always demoable.
+No API keys are required for the app to *run* — each unconfigured provider
+reports a clear config error instead of crashing — but as of 2026-08-02
+there's no synthetic demo fallback for flights or hotels anymore (see the
+dated note below): without real credentials for at least one provider per
+category, that category is honestly empty rather than showing fabricated
+data. The optimizer agent is the exception — it still falls back to a
+local heuristic scorer (not fabricated data, just a simpler ranking
+formula) when `OPENROUTER_API_KEY` is unset.
 
 ## Architecture (read this before changing provider or data-model code)
 
@@ -34,8 +40,9 @@ There are **two parallel data models** and an adapter between them:
   the rich UI shape. Fields the real APIs can't supply (timelines, per-
   traveler splits, carbon estimates) are **derived, not fabricated** — always
   computed from the real total using age/category logic in
-  `lib/providers/travelerMapping.ts`, and labeled "Demo estimate" in the UI
-  where relevant.
+  `lib/providers/travelerMapping.ts`. (Was also labeled "Demo estimate" in
+  the UI — removed 2026-08-02, see the dated note below: the label was
+  hardcoded everywhere regardless of whether the underlying data was real.)
 
 Flow (as of 2026-08-02, see the "Progressive search" note below for why):
 `app/page.tsx` (client) → POST `/api/trip-search` → `lib/search.ts`
@@ -59,14 +66,12 @@ everything through `app/api/trip-search`, `app/api/trip-packages`, and
 
 | Category | Provider | Status |
 |---|---|---|
-| Flights | **Duffel** | **Real, wired, verified working end-to-end** (2026-07-31). Token in `.env.local` now has the `air.offer_requests.create` permission. Returns real offers alongside the demo provider. |
+| Flights | **Duffel** | **Real, wired, verified working end-to-end** (2026-07-31). Token in `.env.local` now has the `air.offer_requests.create` permission. |
 | Flights | Amadeus | Not usable. Self-serve sandbox was **decommissioned July 17, 2026**; now enterprise-sales-only. Code exists (`lib/providers/flights/amadeus.ts`) but will always report "Missing AMADEUS_CLIENT_ID" without an enterprise deal. |
-| Flights | **TripWeaver Demo Transport** | Fallback, always runs, always succeeds. 4 synthetic routes (direct flight, connecting flight, train+flight via Berlin, overnight bus+flight), priced off traveler count. `lib/providers/transport/demoFlights.ts`. |
 | Hotels | Booking.com Demand API | Not usable. Partner-gated, no credentials, and no accessible self-serve path found. Code exists but needs `bookingCityId` per destination via `TRIPWEAVER_LOCATION_HINTS_JSON` even if credentialed. |
 | Hotels | Skyscanner Hotels | Not usable. Same partner-gating issue as Booking.com. |
-| Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price, and a real per-hotel photo via a bulk Content API call — see the "Real per-hotel photos" note below) alongside/suppressing the demo provider per the usual rule. |
+| Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price, and a real per-hotel photo via a bulk Content API call — see the "Real per-hotel photos" note below). |
 | Hotels | **Google Hotels (SerpApi)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/accommodations/serpapi-hotels.ts`, needs `SERPAPI_KEY`. Free tier: 250 searches/month, recurring. Not a licensed wholesaler feed — it's SerpApi's structured JSON of Google Hotels' own search results (comparison-only, no booking capability; `bookingUrl` points at the hotel's own site/listing, not an affiliate booking link). Takes a free-text destination (`q`) instead of a per-city code, so — unlike Hotelbeds — it isn't limited to destinations with a hint configured. Some premium chain hotels (seen live: Sofitel, Radisson Blu, Hilton) come back from Google with no rate at all for a given query; these are filtered out rather than shown with a fabricated PLN 0 price. |
-| Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
 | Packages | **DACH Package Holidays (Apify)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/packages/apify-dach-packages.ts`, needs `APIFY_API_TOKEN`. Real bundled prices from TUI/DERTOUR/weg.de/ab-in-den-urlaub.de/alltours — but only for German-region departure airports (see the dated note below); Szczecin returns 0. Unofficial third-party scraper, not a licensed feed — see the ToS caveat in the dated note. No demo fallback still — if this provider fails/returns nothing, the tab is honestly empty rather than showing synthetic data. As of 2026-08-02, within-budget packages are also merged into "Complete trips" and ranked by the optimizer agent alongside self-organized combos, not just shown in their own tab — see the dated note below. |
 | Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-5-mini` via `OPENROUTER_API_KEY`, configurable via `OPENROUTER_MODEL`). Falls back to a local heuristic scorer if the key is missing or the call fails. As of 2026-08-01 its ranking is authoritative over the displayed trip order (previously computed but discarded — see the dated note below). `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
 
@@ -265,6 +270,48 @@ toward the most expensive one, not just the floor of the price range.
 Verified live, same Berlin search, no other changes: 428 real trip combos
 now, with a real cheapest (PLN 7,104) and fastest (2h 45m) both inside the
 requested budget.
+
+**Removed the "Demo estimate" label everywhere (2026-08-02).** Another real
+bug, not just a copy change: `DEFAULT_ESTIMATE_LABEL = "Demo estimate"`
+(`components/results/helpers.ts`) was the default for an `estimateLabel`
+prop threaded through seven components (`TripOptionCard`,
+`AccommodationList`, `TransportOptionList`, `PackageHolidayList`,
+`CostBreakdown`, `Timeline`, `CompareBar`) — and nothing ever overrode it.
+`app/page.tsx` never passed `estimateLabel` down to `ResultsTabs` at all, so
+every card showed "Demo estimate" unconditionally, including real Duffel/
+Hotelbeds/SerpApi/Apify results throughout this entire session's testing.
+Removed the prop and its rendering from all seven components rather than
+leave dead plumbing behind. Also removed two adjacent, same-spirit issues
+found while sweeping for this: `OptimizerPanel`'s scenario cards had a
+`confidence: "Trip result" | "Demo estimate"` badge with the same
+always-"Demo estimate"-unless-a-real-candidate-exists pattern (removed the
+field and badge entirely), and `SearchPanel`'s step 4 description read "run
+the complete demo comparison" despite the wizard always running a real
+search (reworded to just "comparison"). `SearchPanel`'s separate
+`demoDataLabel` prop was already dead code (declared, never rendered) —
+removed along with it. Verified live: full page text contains no "Demo
+estimate"/"DEMO ESTIMATE" anywhere post-search, cards and the compare bar
+render cleanly with the label simply absent (no replacement copy invented
+where none was asked for).
+
+**Removed the demo flights/hotels providers (2026-08-02).** User request:
+real data is wired up and working for both categories, so the synthetic
+fallback is no longer needed. Deleted `lib/providers/transport/demoFlights.ts`
+(4 synthetic routes) and `lib/providers/accommodations/demoStays.ts` (5
+synthetic hotels) outright, unregistered them from `transportProviders`/
+`accommodationProviders` in `lib/providers/index.ts`, and removed the
+now-dead demo-suppression logic in `lib/search.ts`
+(`offersExcludingSuppressedDemo`, `DEMO_TRANSPORT_PROVIDER_ID`,
+`DEMO_ACCOMMODATION_PROVIDER_ID`) that used to blend/suppress them against
+real results. Real behavior change, not just cleanup: if every configured
+real provider for flights or hotels fails (bad credentials, provider
+outage, etc.), that category is now honestly empty instead of silently
+falling back to synthetic data — same "no fabricated data" principle
+already applied to packages (which never had a demo fallback to begin
+with). The mock provider files from the original hackathon build
+(`lib/providers/transport/mock*.ts`, `lib/providers/accommodation/mock*.ts`)
+were already unregistered/unused before this and are untouched — this only
+removed the two demo providers that were actually wired in and running.
 
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
@@ -592,13 +639,11 @@ but no provider ever read them back off the object. Verified live
   provider in this codebase — selecting only those modes now correctly
   returns 0 real results (verified live) rather than silently
   substituting flights, but it can't manufacture data that doesn't
-  exist. One interaction worth knowing: demo transport (which does have
-  a `mode: "bus"` route) stays suppressed whenever *any* real transport
-  provider succeeds, even for an unrelated mode — so a train/bus-only
-  search when Duffel is working returns a genuinely empty state rather
-  than falling back to a demo bus estimate. Not changed; a deliberate,
-  separate design choice from `offersExcludingSuppressedDemo`, flagged
-  here in case it's worth revisiting later.
+  exist. (At the time this was written, demo transport's `mode: "bus"`
+  route added a wrinkle here — see the 2026-08-02 dated note above:
+  the demo transport/accommodation providers were removed entirely, so
+  a train/bus-only search now always returns a genuinely empty state,
+  not just when a real provider happens to succeed.)
 - **Budget** (min/max) — never sent to any provider at all; UI/display
   only. **Fixed**: since budget describes the *whole trip*, not one
   category, enforcing it against a single provider's own price filter
@@ -649,6 +694,9 @@ stays demoable). Flights are pure-real now that Duffel works for any of the
 ~130 cities in `lib/cityData.ts`; hotels are pure-real for Barcelona now that
 Hotelbeds is verified working — other destinations still fall back to demo
 stays until they get a `hotelbedsDestinationCode` in `TRIPWEAVER_LOCATION_HINTS_JSON`.
+**Superseded 2026-08-02** — see the dated note near the top of this file:
+the demo flights/hotels providers this note describes were removed
+entirely, so this suppression logic no longer exists or applies.
 
 **Results page redesign (2026-07-31):** the results view was restructured
 end to end — see "What's implemented" below for the current shape. Highlights:
@@ -748,10 +796,10 @@ call failed) instead of silently showing nothing.
   "Where to pick up work" below.
 - **Hotelbeds destination coverage**: only Barcelona has a
   `hotelbedsDestinationCode` in `TRIPWEAVER_LOCATION_HINTS_JSON` right now
-  (`"BCN"`). Every other destination falls back to demo stays until someone
-  looks up and adds its code — Hotelbeds codes are their own codification,
-  not IATA, so they can't be derived from `lib/cityData.ts` the way flight
-  IATA codes were.
+  (`"BCN"`). Every other destination relies on SerpApi's free-text coverage
+  instead until someone looks up and adds its Hotelbeds code — Hotelbeds
+  codes are their own codification, not IATA, so they can't be derived from
+  `lib/cityData.ts` the way flight IATA codes were.
 - **Amadeus, Booking.com, Skyscanner**: dead ends for an individual/non-business
   user right now (see provider table). Don't spend time on these unless that
   changes.
@@ -796,8 +844,8 @@ These are independent enough to hand to separate sessions:
 1. **Hotelbeds destination coverage** — Hotelbeds is verified working, but
    only Barcelona has a `hotelbedsDestinationCode` hint. Look up and add
    codes for other frequently-searched cities in
-   `TRIPWEAVER_LOCATION_HINTS_JSON` so they get real hotels too instead of
-   falling back to demo stays.
+   `TRIPWEAVER_LOCATION_HINTS_JSON` so they get real Hotelbeds results too,
+   on top of what SerpApi already covers for any destination.
 2. **Package holidays** — three candidates researched live 2026-08-01.
    **Candidate B (Apify) is now implemented and verified working
    end-to-end** — see below. A and C remain not-implemented, blocked on

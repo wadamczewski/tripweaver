@@ -16,7 +16,6 @@ import {
 import type { TransportOption } from "@/lib/types";
 import { useInfiniteReveal } from "@/lib/useInfiniteReveal";
 import {
-  DEFAULT_ESTIMATE_LABEL,
   formatCarbon,
   formatClock,
   formatDuration,
@@ -35,7 +34,6 @@ const PAGE_SIZE = 20;
 type TransportOptionListProps = {
   options: TransportOption[];
   savedOptionIds?: string[];
-  estimateLabel?: string;
   className?: string;
   onToggleSave?: (option: TransportOption) => void;
   onOpenProvider?: (action: ProviderActionPayload) => void;
@@ -44,7 +42,6 @@ type TransportOptionListProps = {
 export function TransportOptionList({
   options,
   savedOptionIds = [],
-  estimateLabel = DEFAULT_ESTIMATE_LABEL,
   className,
   onToggleSave,
   onOpenProvider
@@ -81,9 +78,6 @@ export function TransportOptionList({
                       {option.savingBadge}
                     </span>
                   ) : null}
-                  <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-ink/60">
-                    {estimateLabel}
-                  </span>
                   <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accentDark">
                     {formatModes(option.modes)}
                   </span>
@@ -129,8 +123,7 @@ export function TransportOptionList({
               </div>
 
               <aside className="rounded-lg bg-mist p-4 lg:min-w-[13rem] lg:text-right">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/62">{estimateLabel}</p>
-                <p className="mt-2 text-2xl font-bold text-ink">{formatMoney(option.totalPrice)}</p>
+                <p className="text-2xl font-bold text-ink">{formatMoney(option.totalPrice)}</p>
                 <p className="mt-1 text-sm text-ink/60">
                   {option.transfers} transfer{option.transfers === 1 ? "" : "s"}
                 </p>

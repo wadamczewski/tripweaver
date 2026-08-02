@@ -4,7 +4,6 @@ import { BadgePercent, ReceiptText, UsersRound } from "lucide-react";
 import clsx from "clsx";
 import type { PriceBreakdown } from "@/lib/types";
 import {
-  DEFAULT_ESTIMATE_LABEL,
   formatMoney,
   formatTravelerCategory,
   getBreakdownRows,
@@ -14,7 +13,6 @@ import {
 type CostBreakdownProps = {
   breakdown: PriceBreakdown;
   assumptions?: string[];
-  estimateLabel?: string;
   showTravelerPricing?: boolean;
   className?: string;
 };
@@ -22,7 +20,6 @@ type CostBreakdownProps = {
 export function CostBreakdown({
   breakdown,
   assumptions = [],
-  estimateLabel = DEFAULT_ESTIMATE_LABEL,
   showTravelerPricing = true,
   className
 }: CostBreakdownProps) {
@@ -37,7 +34,7 @@ export function CostBreakdown({
             Cost breakdown
           </div>
           <h3 className="mt-2 text-lg font-semibold text-ink">{formatMoney(breakdown.total)}</h3>
-          <p className="mt-1 text-xs text-ink/55">{estimateLabel} total including required add-ons</p>
+          <p className="mt-1 text-xs text-ink/55">Total including required add-ons</p>
         </div>
         <div className="rounded-[0.85rem] border border-line/70 bg-mist/80 px-3 py-2 text-right">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/62">Line items</p>

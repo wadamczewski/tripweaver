@@ -19,7 +19,6 @@ import {
 import type { PackageHoliday } from "@/lib/types";
 import { packageAsAccommodation } from "@/lib/adapters/results";
 import {
-  DEFAULT_ESTIMATE_LABEL,
   formatMoney,
   formatTravelerCategory,
   getPackageProviderAction,
@@ -32,7 +31,6 @@ import type { ProviderActionPayload } from "./types";
 type PackageHolidayListProps = {
   options: PackageHoliday[];
   savedOptionIds?: string[];
-  estimateLabel?: string;
   className?: string;
   onToggleSave?: (option: PackageHoliday) => void;
   onOpenProvider?: (action: ProviderActionPayload) => void;
@@ -41,7 +39,6 @@ type PackageHolidayListProps = {
 export function PackageHolidayList({
   options,
   savedOptionIds = [],
-  estimateLabel = DEFAULT_ESTIMATE_LABEL,
   className,
   onToggleSave,
   onOpenProvider
@@ -91,9 +88,6 @@ export function PackageHolidayList({
                       {option.savingBadge}
                     </span>
                   ) : null}
-                  <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-ink/60">
-                    {estimateLabel}
-                  </span>
                   <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accentDark">
                     Package holiday
                   </span>
@@ -151,8 +145,7 @@ export function PackageHolidayList({
 
               <aside className="flex flex-col justify-between border-t border-line bg-mist p-5 lg:min-w-[13rem] lg:border-l lg:border-t-0 lg:text-right">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/62">{estimateLabel}</p>
-                  <p className="mt-2 text-2xl font-bold text-ink">{formatMoney(option.totalPrice)}</p>
+                  <p className="text-2xl font-bold text-ink">{formatMoney(option.totalPrice)}</p>
                   <p className="mt-1 text-sm text-ink/60">
                     {option.durationNights} nights | child discount {formatMoney(option.childDiscount)}
                   </p>

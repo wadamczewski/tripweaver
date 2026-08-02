@@ -58,7 +58,6 @@ export type OptimizerScenario = {
   savings: Money;
   durationDeltaMinutes: number;
   scoreDelta: number;
-  confidence: "Trip result" | "Demo estimate";
   bullets: string[];
   kind: OptimizerScenarioKind;
 };
@@ -447,7 +446,6 @@ function ScenarioButton({
           {scenario.scoreDelta >= 0 ? "+" : ""}
           {scenario.scoreDelta} score
         </span>
-        <span className="rounded-full bg-white px-2.5 py-1 text-ink/62 ring-1 ring-line">{scenario.confidence}</span>
       </div>
 
       {selected ? (
@@ -745,7 +743,6 @@ function buildOptimizerScenarios({
       savings,
       durationDeltaMinutes: options.durationDeltaMinutes,
       scoreDelta: options.scoreDelta,
-      confidence: "Demo estimate",
       bullets: options.bullets,
       kind: options.kind
     };
@@ -777,7 +774,6 @@ function scenarioFromTrip(options: {
       savings: subtractMoney(selectedTotal, candidateTotal),
       durationDeltaMinutes: options.candidate.totalDurationMinutes - options.selectedTrip.totalDurationMinutes,
       scoreDelta: Math.round(options.candidate.score - options.selectedTrip.score),
-      confidence: "Trip result",
       bullets: options.bullets,
       kind: options.kind
     };
@@ -793,7 +789,6 @@ function scenarioFromTrip(options: {
     savings: subtractMoney(selectedTotal, totalPrice),
     durationDeltaMinutes: options.fallbackDurationDelta,
     scoreDelta: options.fallbackPercent < 0 ? 1 : 0,
-    confidence: "Demo estimate",
     bullets: options.bullets,
     kind: options.kind
   };
@@ -811,7 +806,6 @@ function emptyScenarios(currency: Currency): OptimizerScenario[] {
       savings: zero,
       durationDeltaMinutes: 0,
       scoreDelta: 0,
-      confidence: "Demo estimate",
       bullets: ["Select a trip to compare transport and accommodation separately."],
       kind: "separate-booking"
     },
@@ -823,7 +817,6 @@ function emptyScenarios(currency: Currency): OptimizerScenario[] {
       savings: zero,
       durationDeltaMinutes: 0,
       scoreDelta: 0,
-      confidence: "Demo estimate",
       bullets: ["Select a trip to compare bundled package pricing."],
       kind: "package"
     }

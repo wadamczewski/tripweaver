@@ -2,10 +2,8 @@ import { bookingAccommodationProvider } from "./accommodations/booking";
 import { skyscannerHotelsProvider } from "./accommodations/skyscanner-hotels";
 import { hotelbedsAccommodationProvider } from "./accommodations/hotelbeds";
 import { serpapiHotelsProvider } from "./accommodations/serpapi-hotels";
-import { demoStaysProvider } from "./accommodations/demoStays";
 import { amadeusFlightsProvider } from "./flights/amadeus";
 import { duffelFlightsProvider } from "./flights/duffel";
-import { demoFlightsProvider } from "./transport/demoFlights";
 import { apifyDachPackagesProvider } from "./packages/apify-dach-packages";
 
 // amadeusFlightsProvider, bookingAccommodationProvider, and skyscannerHotelsProvider
@@ -15,16 +13,17 @@ import { apifyDachPackagesProvider } from "./packages/apify-dach-packages";
 // hotelbedsDestinationCode hint before it returns anything. serpapiHotelsProvider
 // (Google Hotels via SerpApi, needs SERPAPI_KEY) works for any destination —
 // no per-city code needed — but is comparison-only data (scraped Google Hotels
-// results), not a licensed wholesaler feed. The demo* providers guarantee
-// every category always has clearly-labeled demo results instead of showing
-// nothing while those are being sorted out.
-export const transportProviders = [amadeusFlightsProvider, duffelFlightsProvider, demoFlightsProvider];
+// results), not a licensed wholesaler feed. No demo fallback for either
+// category anymore — Duffel and Hotelbeds/SerpApi are real and working, so a
+// synthetic stand-in isn't needed; if every configured real provider for a
+// category fails, that category is honestly empty instead of showing
+// fabricated data.
+export const transportProviders = [amadeusFlightsProvider, duffelFlightsProvider];
 export const accommodationProviders = [
   bookingAccommodationProvider,
   skyscannerHotelsProvider,
   hotelbedsAccommodationProvider,
   serpapiHotelsProvider,
-  demoStaysProvider,
 ];
 // apifyDachPackagesProvider (needs APIFY_API_TOKEN) is a real, live-verified
 // source for German package holidays (TUI, DERTOUR, weg.de,

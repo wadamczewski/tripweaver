@@ -22,7 +22,6 @@ import type { TripOption } from "@/lib/types";
 import { CostBreakdown } from "./CostBreakdown";
 import { Timeline } from "./Timeline";
 import {
-  DEFAULT_ESTIMATE_LABEL,
   formatCarbon,
   formatClock,
   formatDuration,
@@ -42,7 +41,6 @@ type TripOptionCardProps = {
   isSaved?: boolean;
   isCompared?: boolean;
   compareDisabled?: boolean;
-  estimateLabel?: string;
   initialExpanded?: boolean;
   className?: string;
   onToggleSave?: (option: TripOption) => void;
@@ -56,7 +54,6 @@ export function TripOptionCard({
   isSaved = false,
   isCompared = false,
   compareDisabled = false,
-  estimateLabel = DEFAULT_ESTIMATE_LABEL,
   initialExpanded = false,
   className,
   onToggleSave,
@@ -92,9 +89,6 @@ export function TripOptionCard({
             ))}
             <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-ink/60">
               {isPackage ? "Package bundle" : "Self-organized"}
-            </span>
-            <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sageDark">
-              {estimateLabel}
             </span>
           </div>
 
@@ -177,15 +171,7 @@ export function TripOptionCard({
           <div className="relative w-full lg:text-right">
             <p
               className={clsx(
-                "text-xs font-semibold uppercase tracking-[0.18em]",
-                option.accommodation.imageUrl ? "text-white/80" : "text-ink/62"
-              )}
-            >
-              {estimateLabel}
-            </p>
-            <p
-              className={clsx(
-                "mt-2 text-3xl font-bold tracking-normal",
+                "text-3xl font-bold tracking-normal",
                 option.accommodation.imageUrl ? "text-white" : "text-ink"
               )}
             >
@@ -219,7 +205,7 @@ export function TripOptionCard({
       <div className="grid gap-3 border-t border-line bg-paper/75 px-5 py-4 md:grid-cols-2 xl:grid-cols-4">
         <DetailLine icon={UsersRound} label="Travelers" value={getTravelerGroupSummary(option)} />
         <DetailLine icon={Luggage} label="Luggage" value={getLuggageLabel(option)} />
-        <DetailLine icon={BadgeCheck} label="Providers" value={getProviderLabel(option) || "Normalized demo providers"} />
+        <DetailLine icon={BadgeCheck} label="Providers" value={getProviderLabel(option) || "Provider not specified"} />
         <DetailLine
           icon={ShieldCheck}
           label="Cancellation"
@@ -252,7 +238,7 @@ export function TripOptionCard({
       {expanded ? (
         <div className="grid animate-fade-up gap-4 border-t border-line bg-[#fbf8f1] p-5 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
-            <Timeline items={option.timeline} segments={option.transportSegments} estimateLabel={estimateLabel} />
+            <Timeline items={option.timeline} segments={option.transportSegments} />
 
             <section className="rounded-lg border border-line bg-white/75 p-4">
               <h3 className="text-sm font-semibold text-ink">Stay and room allocation</h3>
@@ -291,11 +277,7 @@ export function TripOptionCard({
           </div>
 
           <div className="space-y-4">
-            <CostBreakdown
-              breakdown={option.priceBreakdown}
-              assumptions={option.costAssumptions}
-              estimateLabel={estimateLabel}
-            />
+            <CostBreakdown breakdown={option.priceBreakdown} assumptions={option.costAssumptions} />
 
             <section className="rounded-lg border border-line bg-white/75 p-4">
               <h3 className="text-sm font-semibold text-ink">Open at provider</h3>

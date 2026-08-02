@@ -13,8 +13,6 @@ import type {
 } from "@/lib/types";
 import type { ProviderActionPayload, RecommendationBadge } from "./types";
 
-export const DEFAULT_ESTIMATE_LABEL = "Demo estimate";
-
 export const RESULTS_TABS = [
   { id: "complete", label: "Complete trips" },
   { id: "transport", label: "Transport" },

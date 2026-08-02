@@ -56,7 +56,6 @@ export type SearchPanelProps = {
   isSubmitting?: boolean;
   isLoading?: boolean;
   submitLabel?: string;
-  demoDataLabel?: string;
   className?: string;
 };
 
@@ -92,7 +91,7 @@ const wizardSteps: Array<{
     id: "review",
     title: "Ready to compare",
     eyebrow: "Step 4",
-    description: "Review the trip brief, then run the complete demo comparison."
+    description: "Review the trip brief, then run the complete comparison."
   }
 ];
 
@@ -115,7 +114,6 @@ export function SearchPanel({
   isSubmitting = false,
   isLoading = false,
   submitLabel = "Find my trip",
-  demoDataLabel = "Demo estimates",
   className
 }: SearchPanelProps) {
   const [activeStep, setActiveStep] = useState(0);

@@ -12,22 +12,6 @@ import type {
   TripSearchCriteria,
 } from "./trip/types";
 
-const DEMO_TRANSPORT_PROVIDER_ID = "tripweaver-demo-flights";
-const DEMO_ACCOMMODATION_PROVIDER_ID = "tripweaver-demo-stays";
-
-function offersExcludingSuppressedDemo<TOffer>(
-  searches: Array<{ offers: TOffer[]; status: ProviderStatus }>,
-  demoProviderId: string,
-) {
-  const realProviderSucceeded = searches.some(
-    (result) => result.status.providerId !== demoProviderId && result.status.ok && result.offers.length > 0,
-  );
-
-  return searches
-    .filter((result) => realProviderSucceeded ? result.status.providerId !== demoProviderId : true)
-    .flatMap((result) => result.offers);
-}
-
 // The only real transport provider (Duffel) is flights-only — there's no
 // real train/bus/car/ferry data behind this app. Filtering here means an
 // unchecked "Flight" mode honestly excludes flights (previously it had no
@@ -155,12 +139,12 @@ export async function searchTripCore(criteria: TripSearchCriteria): Promise<Trip
   ]);
 
   const transportOptions = filterByTransportModes(
-    offersExcludingSuppressedDemo(transportSearches, DEMO_TRANSPORT_PROVIDER_ID),
+    transportSearches.flatMap((result) => result.offers),
     criteria.transportModes,
   ).sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
-  const accommodationOptions = offersExcludingSuppressedDemo(accommodationSearches, DEMO_ACCOMMODATION_PROVIDER_ID).sort(
-    (a, b) => a.totalPrice.amount - b.totalPrice.amount,
-  );
+  const accommodationOptions = accommodationSearches
+    .flatMap((result) => result.offers)
+    .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
   const tripOptions = filterByBudget(
     combineOptions(transportOptions, accommodationOptions, criteria),
     criteria,

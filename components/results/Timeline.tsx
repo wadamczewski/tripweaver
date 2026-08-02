@@ -15,7 +15,6 @@ import {
 import clsx from "clsx";
 import type { TimelineItem, TransportMode, TransportSegment } from "@/lib/types";
 import {
-  DEFAULT_ESTIMATE_LABEL,
   formatClock,
   formatDateTime,
   formatDuration,
@@ -28,7 +27,6 @@ type TimelineProps = {
   items: TimelineItem[];
   segments?: TransportSegment[];
   title?: string;
-  estimateLabel?: string;
   className?: string;
 };
 
@@ -53,7 +51,6 @@ export function Timeline({
   items,
   segments = [],
   title = "Door-to-door timeline",
-  estimateLabel = DEFAULT_ESTIMATE_LABEL,
   className
 }: TimelineProps) {
   return (
@@ -61,7 +58,7 @@ export function Timeline({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-ink">{title}</h3>
-          <p className="text-xs text-ink/55">{estimateLabel} itinerary timing</p>
+          <p className="text-xs text-ink/55">Estimated itinerary timing</p>
         </div>
         <div className="inline-flex items-center gap-2 rounded-full bg-mist px-3 py-1 text-xs font-medium text-ink/70">
           <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />

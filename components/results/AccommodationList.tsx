@@ -17,12 +17,7 @@ import {
 } from "lucide-react";
 import type { AccommodationOption } from "@/lib/types";
 import { useInfiniteReveal } from "@/lib/useInfiniteReveal";
-import {
-  DEFAULT_ESTIMATE_LABEL,
-  formatMoney,
-  getAccommodationProviderAction,
-  getRoomSummary
-} from "./helpers";
+import { formatMoney, getAccommodationProviderAction, getRoomSummary } from "./helpers";
 import { HotelDetailsModal } from "./HotelDetailsModal";
 import { InfiniteScrollFooter } from "./InfiniteScrollFooter";
 import type { ProviderActionPayload } from "./types";
@@ -33,7 +28,6 @@ type AccommodationListProps = {
   options: AccommodationOption[];
   rejectedOptions?: AccommodationOption[];
   savedOptionIds?: string[];
-  estimateLabel?: string;
   className?: string;
   onToggleSave?: (option: AccommodationOption) => void;
   onOpenProvider?: (action: ProviderActionPayload) => void;
@@ -43,7 +37,6 @@ export function AccommodationList({
   options,
   rejectedOptions = [],
   savedOptionIds = [],
-  estimateLabel = DEFAULT_ESTIMATE_LABEL,
   className,
   onToggleSave,
   onOpenProvider
@@ -93,9 +86,6 @@ export function AccommodationList({
 
               <div className="min-w-0 p-5">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-ink/60">
-                    {estimateLabel}
-                  </span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-sageDark">
                     <Star className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
                     {option.rating} ({option.reviewCount})
@@ -140,8 +130,7 @@ export function AccommodationList({
 
               <aside className="flex flex-col justify-between border-t border-line bg-mist p-5 lg:min-w-[13rem] lg:border-l lg:border-t-0 lg:text-right">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/62">{estimateLabel}</p>
-                  <p className="mt-2 text-2xl font-bold text-ink">{formatMoney(option.totalPrice)}</p>
+                  <p className="text-2xl font-bold text-ink">{formatMoney(option.totalPrice)}</p>
                   <p className="mt-1 text-sm text-ink/60">
                     {option.nights} night{option.nights === 1 ? "" : "s"} | {option.taxesIncluded ? "Taxes incl." : "Taxes est."}
                   </p>

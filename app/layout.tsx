@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "TripWeaver",
-  description: "Compare self-organized travel and package holidays with realistic demo estimates."
+  description: "Compare self-organized travel and package holidays in one place."
 };
 
 export default function RootLayout({

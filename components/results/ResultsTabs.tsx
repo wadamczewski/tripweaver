@@ -21,13 +21,7 @@ import { InfiniteScrollFooter } from "./InfiniteScrollFooter";
 import { PackageHolidayList } from "./PackageHolidayList";
 import { TransportOptionList } from "./TransportOptionList";
 import { TripOptionCard } from "./TripOptionCard";
-import {
-  DEFAULT_ESTIMATE_LABEL,
-  RESULTS_TABS,
-  buildRecommendationBadges,
-  getRecommendationTiles,
-  getResultsCounts
-} from "./helpers";
+import { RESULTS_TABS, buildRecommendationBadges, getRecommendationTiles, getResultsCounts } from "./helpers";
 import type { ProviderActionPayload, ProviderStatus, ResultsTabId, SaveTarget } from "./types";
 
 const TRIP_PAGE_SIZE = 20;
@@ -42,7 +36,6 @@ type ResultsTabsProps = {
   compareIds?: string[];
   maxComparedOptions?: number;
   providerStatuses?: ProviderStatus[];
-  estimateLabel?: string;
   isPackagesPending?: boolean;
   isAgentReviewing?: boolean;
   className?: string;
@@ -68,7 +61,6 @@ export function ResultsTabs({
   compareIds,
   maxComparedOptions = 3,
   providerStatuses = [],
-  estimateLabel = DEFAULT_ESTIMATE_LABEL,
   isPackagesPending = false,
   isAgentReviewing = false,
   className,
@@ -266,7 +258,6 @@ export function ResultsTabs({
                       isSaved={activeSavedIds.includes(option.id)}
                       isCompared={isCompared}
                       compareDisabled={compareDisabled}
-                      estimateLabel={estimateLabel}
                       onToggleSave={toggleSavedTrip}
                       onToggleCompare={toggleCompare}
                       onOpenProvider={onOpenProvider}
@@ -296,7 +287,6 @@ export function ResultsTabs({
           <CompareBar
             selectedOptions={comparedOptions}
             maxOptions={maxComparedOptions}
-            estimateLabel={estimateLabel}
             onRemove={removeCompared}
             onClear={clearCompared}
             onCompare={onCompareSelected}
@@ -309,7 +299,6 @@ export function ResultsTabs({
           <TransportOptionList
             options={results.transportOptions}
             savedOptionIds={activeSavedIds}
-            estimateLabel={estimateLabel}
             onToggleSave={(option) =>
               onToggleSave?.({
                 kind: "transport",
@@ -335,7 +324,6 @@ export function ResultsTabs({
               options={results.accommodationOptions}
               rejectedOptions={results.rejectedAccommodation}
               savedOptionIds={activeSavedIds}
-              estimateLabel={estimateLabel}
               onToggleSave={(option) =>
                 onToggleSave?.({
                   kind: "accommodation",
@@ -357,7 +345,6 @@ export function ResultsTabs({
           <PackageHolidayList
             options={results.packageHolidays}
             savedOptionIds={activeSavedIds}
-            estimateLabel={estimateLabel}
             onToggleSave={(option) =>
               onToggleSave?.({
                 kind: "package",

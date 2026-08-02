@@ -3,12 +3,11 @@
 import clsx from "clsx";
 import { Scale, Trash2, X } from "lucide-react";
 import type { TripOption } from "@/lib/types";
-import { DEFAULT_ESTIMATE_LABEL, formatDuration, formatMoney } from "./helpers";
+import { formatDuration, formatMoney } from "./helpers";
 
 type CompareBarProps = {
   selectedOptions: TripOption[];
   maxOptions?: number;
-  estimateLabel?: string;
   className?: string;
   onRemove?: (option: TripOption) => void;
   onClear?: () => void;
@@ -18,7 +17,6 @@ type CompareBarProps = {
 export function CompareBar({
   selectedOptions,
   maxOptions = 3,
-  estimateLabel = DEFAULT_ESTIMATE_LABEL,
   className,
   onRemove,
   onClear,
@@ -45,7 +43,7 @@ export function CompareBar({
             <p className="text-sm font-semibold">
               Compare {selectedOptions.length}/{maxOptions} trip option{selectedOptions.length === 1 ? "" : "s"}
             </p>
-            <p className="text-xs text-white/60">{estimateLabel} side-by-side view</p>
+            <p className="text-xs text-white/60">Side-by-side view</p>
           </div>
         </div>
 
