@@ -43,7 +43,8 @@ export function makeSegment(options: {
     transfers: options.transfers ?? 0,
     price: moneyFromPln(options.pricePln, options.currency),
     luggageIncluded: options.luggageIncluded ?? false,
-    bookingUrl: options.bookingUrl
+    bookingUrl: options.bookingUrl,
+    direction: "outbound"
   };
 }
 

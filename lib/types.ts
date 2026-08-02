@@ -83,6 +83,11 @@ export type TransportSegment = {
   price: Money;
   luggageIncluded: boolean;
   bookingUrl?: string;
+  // Every transport option here is priced as a full round trip; this
+  // distinguishes the outbound leg from the real return leg on
+  // criteria.returnDate so the UI can show both instead of only the
+  // outbound half of a trip the user already paid to come back from.
+  direction: "outbound" | "return";
 };
 
 export type ProviderTravelerCategory =

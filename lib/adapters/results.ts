@@ -134,8 +134,16 @@ function toTransportOption(offer: TransportOffer, criteria: SearchCriteria): Tra
   const totalPrice = toRichMoney(offer.totalPrice, criteria.currency);
   const travelerPrices = allocateTravelerPrices(totalPrice, criteria.travelers.travelers, kind);
   const durationMinutes = offer.durationMinutes ?? 240;
+  // Every provider here (Duffel/Amadeus's two real slices, ground-transport
+  // and connected-flights' round-trip pricing) already prices the full
+  // round trip, but until now nothing modeled the return leg's own timing —
+  // falls back to the outbound duration (a same-both-ways assumption) when
+  // a provider genuinely can't distinguish it.
+  const inboundDurationMinutes = offer.inboundDurationMinutes ?? durationMinutes;
   const departureTime = criteria.departureDate;
   const arrivalTime = addMinutes(`${criteria.departureDate}T00:00:00.000Z`, durationMinutes);
+  const returnDepartureTime = criteria.returnDate;
+  const returnArrivalTime = addMinutes(`${criteria.returnDate}T00:00:00.000Z`, inboundDurationMinutes);
   // offer.luggageIncluded now reflects the airline's real baggage allowance
   // (see duffel.ts), not the search toggle — only add an estimated fee when
   // the traveler actually said they need checked luggage and the real fare
@@ -143,8 +151,12 @@ function toTransportOption(offer: TransportOffer, criteria: SearchCriteria): Tra
   const luggagePrice =
     offer.luggageIncluded || !criteria.checkedLuggage ? money(0, criteria.currency) : moneyFromPln(120, criteria.currency);
 
-  const segment: TransportSegment = {
-    id: `${offer.id}-segment`,
+  // totalPrice already covers both directions (that's what the provider
+  // billed) — split it across the two segments for display, not doubled.
+  const legPrice = money(totalPrice.amount / 2, criteria.currency);
+
+  const outboundSegment: TransportSegment = {
+    id: `${offer.id}-outbound`,
     mode: offer.mode,
     provider: offer.providerName,
     origin: criteria.origin,
@@ -153,9 +165,26 @@ function toTransportOption(offer: TransportOffer, criteria: SearchCriteria): Tra
     arrivalTime,
     durationMinutes,
     transfers: offer.stops ?? 0,
-    price: totalPrice,
+    price: legPrice,
     luggageIncluded: offer.luggageIncluded ?? false,
-    bookingUrl: offer.bookingUrl
+    bookingUrl: offer.bookingUrl,
+    direction: "outbound"
+  };
+
+  const returnSegment: TransportSegment = {
+    id: `${offer.id}-return`,
+    mode: offer.mode,
+    provider: offer.providerName,
+    origin: criteria.destination,
+    destination: criteria.origin,
+    departureTime: returnDepartureTime,
+    arrivalTime: returnArrivalTime,
+    durationMinutes: inboundDurationMinutes,
+    transfers: offer.inboundStops ?? offer.stops ?? 0,
+    price: legPrice,
+    luggageIncluded: offer.luggageIncluded ?? false,
+    bookingUrl: offer.bookingUrl,
+    direction: "return"
   };
 
   return {
@@ -169,17 +198,18 @@ function toTransportOption(offer: TransportOffer, criteria: SearchCriteria): Tra
     arrivalTime,
     totalDurationMinutes: durationMinutes,
     transfers: offer.stops ?? 0,
-    segments: [segment],
+    segments: [outboundSegment, returnSegment],
     travelerPrices,
     basePrice: totalPrice,
     luggagePrice,
     transferPrice: money(0, criteria.currency),
     totalPrice,
     luggageIncluded: offer.luggageIncluded ?? false,
-    carbonKg: estimateCarbonKg(offer.mode, offer.durationMinutes),
+    carbonKg: estimateCarbonKg(offer.mode, durationMinutes) + estimateCarbonKg(offer.mode, inboundDurationMinutes),
     bookingUrl: offer.bookingUrl,
     providerNotes: [
       offer.outboundSummary,
+      offer.inboundSummary,
       offer.operatingCarriers && offer.operatingCarriers.length > 0
         ? `Operated by ${offer.operatingCarriers.join(", ")}`
         : undefined
@@ -286,7 +316,9 @@ export function packageAsAccommodation(pkg: PackageHoliday): AccommodationOption
 }
 
 function buildTimeline(transport: TransportOption, accommodation: AccommodationOption, criteria: SearchCriteria): TimelineItem[] {
-  return [
+  const returnSegment = transport.segments.find((segment) => segment.direction === "return");
+
+  const items: TimelineItem[] = [
     {
       time: transport.departureTime,
       title: "Depart",
@@ -310,6 +342,28 @@ function buildTimeline(transport: TransportOption, accommodation: AccommodationO
       detail: accommodation.name
     }
   ];
+
+  // Every transport option is priced as a full round trip (see
+  // toTransportOption) — show the real return leg here too, not just the
+  // outbound half of the trip, when one exists.
+  if (returnSegment) {
+    items.push(
+      {
+        time: returnSegment.departureTime,
+        title: "Depart",
+        detail: `${criteria.destination} · ${returnSegment.provider}`,
+        mode: returnSegment.mode
+      },
+      {
+        time: returnSegment.arrivalTime,
+        title: "Arrive",
+        detail: criteria.origin,
+        mode: returnSegment.mode
+      }
+    );
+  }
+
+  return items;
 }
 
 const PACKAGE_ESTIMATED_DURATION_MINUTES = 240;

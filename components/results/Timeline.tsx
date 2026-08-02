@@ -112,6 +112,9 @@ export function Timeline({
                         <span className="rounded-full bg-sage/10 px-2 py-0.5 text-xs font-semibold text-sageDark">
                           {formatMode(segment.mode)}
                         </span>
+                        <span className="rounded-full bg-mist px-2 py-0.5 text-xs font-semibold text-ink/60">
+                          {segment.direction === "return" ? "Return" : "Outbound"}
+                        </span>
                       </div>
                       <p className="mt-1 text-xs text-ink/60">
                         {formatDateTime(segment.departureTime)} to {formatDateTime(segment.arrivalTime)} |{" "}

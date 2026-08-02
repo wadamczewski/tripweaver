@@ -521,6 +521,57 @@ being told to. Added ~9s to that search's Duffel-call time (3 extra
 parallel candidate calls) — still well within the "results in a few
 seconds" target, not the packages/agent-review territory.
 
+**Return leg was priced but never shown (2026-08-02).** User report: "flights
+need to be in both directions — I go from Berlin to Naples, I'd like to come
+back at the end of the date range." Real bug, not a missing feature — Duffel
+and Amadeus already request a genuine round trip (two slices: outbound on
+`departureDate`, return on `returnDate`) and `total_amount` already covers
+both, but `toTransportOption()` (`lib/adapters/results.ts`) only ever built
+**one** `TransportSegment`, using `offer.durationMinutes` — which itself was
+only ever parsed from the *outbound* slice (`offer.slices?.[0]?.duration` in
+`duffel.ts`). The return leg's own data (`offer.inboundSummary`, set since
+this session's earlier work) was computed and then never read anywhere.
+Result: a real round-trip price with zero UI indication a return flight even
+existed — confirmed live, Duffel's raw response for a real Berlin→Naples
+search showed a genuine second slice departing Naples on 2026-09-17 (the
+requested return date), completely invisible in the app.
+
+Fixed for every transport provider, not just Duffel: `TransportOffer` gained
+`inboundDurationMinutes`/`inboundStops` (`lib/trip/types.ts`), populated from
+Duffel/Amadeus's real second slice, and from a mirrored same-distance
+estimate for ground-transport/connected-flights (whose return leg wasn't
+previously modeled either — connected-flights' return leg now also reuses
+the *real* return flight data Duffel already returns, not a fabricated
+mirror). `toTransportOption()` now builds two `TransportSegment`s — outbound
+(departs `criteria.departureDate`) and return (departs `criteria.returnDate`,
+origin/destination swapped) — with a new `direction: "outbound" | "return"`
+field so the UI can tell them apart. Total price is split across the two for
+display (`totalPrice.amount / 2` each) since the provider already billed for
+both combined — not a new fabricated number. Carbon estimate now sums both
+legs (`estimateCarbonKg` × 2) instead of just counting the outbound flight.
+
+Two rendering fixes were needed alongside the data model change, both caught
+by checking the actual UI, not just the API response:
+1. `TripOptionCard.tsx`'s compact "Times" stat used to compute
+   `firstSegment.departureTime to lastSegment.arrivalTime` — harmless while
+   there was only ever one segment, but would have silently spanned outbound
+   departure through *return* arrival (a week later) once a second segment
+   existed, showing e.g. "02:00 to 09:45" with no date and no indication
+   it's actually a week apart. Fixed to only ever consider outbound segments
+   for this compact stat; the full round trip is shown in the Timeline
+   instead, where dates are always visible.
+2. `buildTimeline()` (`lib/adapters/results.ts`) only ever produced 4 steps
+   (Depart/Arrive/Hotel check-in/Hotel check-out) — same root cause, same
+   fix pattern. Now appends real Depart/Arrive steps for the return leg
+   when one exists.
+
+Verified live end-to-end (Berlin→Naples, real Duffel data): the expanded
+trip card's "Door-to-door timeline" now shows all 6 real steps ending in
+"Depart Naples · Duffel" / "Arrive Berlin" on the return date, and
+"TRANSPORT SEGMENTS" lists both legs explicitly labeled Outbound/Return with
+real dates (12 Sept vs. 19 Sept) — while the compact "Times" stat correctly
+stayed outbound-only ("02:00 to 04:17"), confirming no regression there.
+
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
 1. Token permissions — the original token lacked `air.offer_requests.create`;

@@ -33,6 +33,13 @@ function connectionSummary(legLabel: string, airportCity: string, distanceKm: nu
   return `Private transfer ${legLabel} ${airportCity} airport (${Math.round(distanceKm)} km, estimated fare) + ${flightSummary} — assumes a ~${CONNECTION_BUFFER_MINUTES} min connection buffer, not a verified through-fare.`;
 }
 
+// Same wording as connectionSummary but for the return leg — the flight
+// half is real (Duffel's own return slice), only the transfer half is a
+// mirrored estimate of the outbound transfer.
+function returnConnectionSummary(legLabel: string, airportCity: string, distanceKm: number, flightInboundSummary?: string) {
+  return `${flightInboundSummary ?? "Return flight"} + private transfer ${legLabel} ${airportCity} airport (${Math.round(distanceKm)} km, estimated fare) — assumes a ~${CONNECTION_BUFFER_MINUTES} min connection buffer, not a verified through-fare.`;
+}
+
 async function buildOriginConnection(
   criteria: TripSearchCriteria,
   originPoint: GeoPoint,
@@ -58,11 +65,17 @@ async function buildOriginConnection(
       mode: "flight",
       title: compactText([`${criteria.origin} to ${airportCity.city}`, `${airportCity.city} to ${criteria.destination}`]),
       outboundSummary: connectionSummary("to", airportCity.city, route.distanceKm, flight.outboundSummary),
+      inboundSummary: returnConnectionSummary("to", airportCity.city, route.distanceKm, flight.inboundSummary),
       durationMinutes:
         estimateGroundDurationMinutes("transfer", route.durationMinutes) +
         CONNECTION_BUFFER_MINUTES +
         (flight.durationMinutes ?? 0),
+      inboundDurationMinutes:
+        (flight.inboundDurationMinutes ?? flight.durationMinutes ?? 0) +
+        CONNECTION_BUFFER_MINUTES +
+        estimateGroundDurationMinutes("transfer", route.durationMinutes),
       stops: 1 + (flight.stops ?? 0),
+      inboundStops: 1 + (flight.inboundStops ?? flight.stops ?? 0),
       totalPrice: money(groundFare.amount + flightPrice.amount, criteria.currency),
       bookingUrl: flight.bookingUrl,
       luggageIncluded: flight.luggageIncluded,
@@ -100,11 +113,17 @@ async function buildDestinationConnection(
       mode: "flight",
       title: compactText([`${criteria.origin} to ${airportCity.city}`, `${airportCity.city} to ${criteria.destination}`]),
       outboundSummary: connectionSummary("from", airportCity.city, route.distanceKm, flight.outboundSummary),
+      inboundSummary: returnConnectionSummary("from", airportCity.city, route.distanceKm, flight.inboundSummary),
       durationMinutes:
         (flight.durationMinutes ?? 0) +
         CONNECTION_BUFFER_MINUTES +
         estimateGroundDurationMinutes("transfer", route.durationMinutes),
+      inboundDurationMinutes:
+        estimateGroundDurationMinutes("transfer", route.durationMinutes) +
+        CONNECTION_BUFFER_MINUTES +
+        (flight.inboundDurationMinutes ?? flight.durationMinutes ?? 0),
       stops: 1 + (flight.stops ?? 0),
+      inboundStops: (flight.inboundStops ?? flight.stops ?? 0) + 1,
       totalPrice: money(groundFare.amount + flightPrice.amount, criteria.currency),
       bookingUrl: flight.bookingUrl,
       luggageIncluded: flight.luggageIncluded,

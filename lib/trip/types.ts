@@ -57,7 +57,15 @@ export type TransportOffer = {
   outboundSummary: string;
   inboundSummary?: string;
   durationMinutes?: number;
+  // Return-leg duration/stops — every provider here already prices a full
+  // round trip (Duffel/Amadeus request two slices; ground-transport and
+  // connected-flights price both directions into totalPrice), but until
+  // now nothing captured the return leg's own timing, so the UI had no way
+  // to show it. Falls back to durationMinutes/stops (a same-both-ways
+  // assumption) when a provider can't distinguish the return leg for real.
+  inboundDurationMinutes?: number;
   stops?: number;
+  inboundStops?: number;
   totalPrice: Money;
   bookingUrl?: string;
   luggageIncluded?: boolean;

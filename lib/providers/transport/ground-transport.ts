@@ -33,6 +33,13 @@ function estimateNote(mode: string, distanceKm: number): string {
   return `Estimated ${mode} fare derived from a real driving distance (${Math.round(distanceKm)} km one-way via OpenRouteService) — not a live schedule or price quote.`;
 }
 
+// The road/rail distance is the same in both directions, so the return leg
+// reuses the same real driving duration as an estimate — not measured
+// separately, but a fair one for a symmetric route.
+function inboundNote(mode: string, origin: string, destination: string): string {
+  return `Return leg (${destination} to ${origin}), same estimated ${mode} fare/duration as the outbound leg.`;
+}
+
 export const groundTransportProvider: TravelProvider<TransportOffer> = {
   id: "ground-transport",
   name: "Ground transport (estimated)",
@@ -63,8 +70,11 @@ export const groundTransportProvider: TravelProvider<TransportOffer> = {
       mode,
       title: `${label} · ${criteria.origin} to ${criteria.destination}`,
       outboundSummary: estimateNote(label.toLowerCase(), route.distanceKm),
+      inboundSummary: inboundNote(label.toLowerCase(), criteria.origin, criteria.destination),
       durationMinutes: estimateGroundDurationMinutes(mode, route.durationMinutes),
+      inboundDurationMinutes: estimateGroundDurationMinutes(mode, route.durationMinutes),
       stops: 0,
+      inboundStops: 0,
       totalPrice: money(estimateGroundFareEur(mode, route.distanceKm, payingTravelers), "EUR"),
     }));
   },

@@ -146,7 +146,12 @@ export function TransportOptionList({
                     <div key={segment.id} className="rounded-md border border-line bg-white/80 p-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-ink">{getSegmentRoute(segment)}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-ink">{getSegmentRoute(segment)}</p>
+                            <span className="rounded-full bg-mist px-2 py-0.5 text-xs font-semibold text-ink/60">
+                              {segment.direction === "return" ? "Return" : "Outbound"}
+                            </span>
+                          </div>
                           <p className="mt-1 text-xs text-ink/55">
                             {segment.provider} | {formatDuration(segment.durationMinutes)} | {segment.transfers} transfer
                             {segment.transfers === 1 ? "" : "s"}

@@ -62,8 +62,12 @@ export function TripOptionCard({
 }: TripOptionCardProps) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const providerActions = useMemo(() => getTripProviderActions(option), [option]);
-  const firstSegment = option.transportSegments[0];
-  const lastSegment = option.transportSegments[option.transportSegments.length - 1];
+  // "Times" here means the outbound leg specifically (when you leave) —
+  // segments now also include a real return leg on the return date, which
+  // belongs in the full Timeline, not collapsed into this compact stat.
+  const outboundSegments = option.transportSegments.filter((segment) => segment.direction !== "return");
+  const firstSegment = outboundSegments[0];
+  const lastSegment = outboundSegments[outboundSegments.length - 1];
   const isPackage = option.kind === "package" || Boolean(option.packageHoliday);
   const recommendationReason = option.recommendationReasons[0] ?? option.scoreExplanation;
 
