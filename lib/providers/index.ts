@@ -5,6 +5,7 @@ import { serpapiHotelsProvider } from "./accommodations/serpapi-hotels";
 import { amadeusFlightsProvider } from "./flights/amadeus";
 import { duffelFlightsProvider } from "./flights/duffel";
 import { groundTransportProvider } from "./transport/ground-transport";
+import { connectedFlightsProvider } from "./transport/connected-flights";
 import { apifyDachPackagesProvider } from "./packages/apify-dach-packages";
 
 // amadeusFlightsProvider, bookingAccommodationProvider, and skyscannerHotelsProvider
@@ -24,7 +25,17 @@ import { apifyDachPackagesProvider } from "./packages/apify-dach-packages";
 // driving distance/duration (OpenRouteService) with clearly-labeled
 // estimated fares, since no self-serve API returns real worldwide
 // point-to-point ticket prices for train/bus/shuttle routes.
-export const transportProviders = [amadeusFlightsProvider, duffelFlightsProvider, groundTransportProvider];
+// connectedFlightsProvider (needs both DUFFEL_ACCESS_TOKEN and
+// OPENROUTESERVICE_API_KEY) covers the case a pure ground option can't:
+// airport-less origin/destination chained to a few nearby real candidate
+// airports (not just the nearest — cheapest connection wins, not closest),
+// each priced with a real Duffel flight + an estimated transfer leg.
+export const transportProviders = [
+  amadeusFlightsProvider,
+  duffelFlightsProvider,
+  groundTransportProvider,
+  connectedFlightsProvider,
+];
 export const accommodationProviders = [
   bookingAccommodationProvider,
   skyscannerHotelsProvider,

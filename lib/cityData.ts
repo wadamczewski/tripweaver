@@ -229,3 +229,19 @@ export function findNearestCity(lat: number, lng: number): CityEntry | undefined
 
   return nearest;
 }
+
+// Every CITY_DATABASE entry has a real airport (that's what `iata` is), so
+// "nearest airport city" is just "nearest few entries" — used by
+// lib/providers/transport/connected-flights.ts to find candidate hubs for a
+// place with no airport of its own (e.g. Zakopane -> Kraków). Returns
+// several candidates, not just the closest one, deliberately: the nearest
+// airport isn't always the cheapest connection, so the caller compares real
+// flight prices from each candidate rather than committing to one guess.
+// excludes anything essentially at the same point (already-resolved city).
+export function findNearestAirportCities(lat: number, lng: number, limit = 3, maxDistanceKm = 200): CityEntry[] {
+  return CITY_DATABASE.map((entry) => ({ entry, distance: distanceKm(lat, lng, entry.lat, entry.lng) }))
+    .filter(({ distance }) => distance > 1 && distance <= maxDistanceKm)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, limit)
+    .map(({ entry }) => entry);
+}

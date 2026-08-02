@@ -1,3 +1,4 @@
+import { CITY_DATABASE } from "../cityData";
 import { optionalEnv } from "./http";
 
 export type GeoPoint = {
@@ -51,4 +52,16 @@ export async function geocodePlace(query: string): Promise<GeoPoint | null> {
 
   geocodeCache.set(key, point);
   return point;
+}
+
+// CITY_DATABASE's curated coordinates are more accurate (city-center, not
+// whatever Nominatim's top match happens to be) and avoid a network call for
+// the ~130 cities already known — Nominatim is only the fallback for places
+// outside that list. Shared by ground-transport.ts and
+// connected-flights.ts, both of which need real coordinates for an
+// arbitrary typed place.
+export async function resolveCoordinates(place: string): Promise<GeoPoint | null> {
+  const known = CITY_DATABASE.find((entry) => entry.city.toLowerCase() === place.trim().toLowerCase());
+  if (known) return { lat: known.lat, lng: known.lng, displayName: known.city };
+  return geocodePlace(place);
 }
