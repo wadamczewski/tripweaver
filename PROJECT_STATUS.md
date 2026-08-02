@@ -74,6 +74,7 @@ everything through `app/api/trip-search`, `app/api/trip-packages`, and
 | Hotels | **Google Hotels (SerpApi)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/accommodations/serpapi-hotels.ts`, needs `SERPAPI_KEY`. Free tier: 250 searches/month, recurring. Not a licensed wholesaler feed — it's SerpApi's structured JSON of Google Hotels' own search results (comparison-only, no booking capability; `bookingUrl` points at the hotel's own site/listing, not an affiliate booking link). Takes a free-text destination (`q`) instead of a per-city code, so — unlike Hotelbeds — it isn't limited to destinations with a hint configured. Some premium chain hotels (seen live: Sofitel, Radisson Blu, Hilton) come back from Google with no rate at all for a given query; these are filtered out rather than shown with a fabricated PLN 0 price. |
 | Packages | **DACH Package Holidays (Apify)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/packages/apify-dach-packages.ts`, needs `APIFY_API_TOKEN`. Real bundled prices from TUI/DERTOUR/weg.de/ab-in-den-urlaub.de/alltours — but only for German-region departure airports (see the dated note below); Szczecin returns 0. Unofficial third-party scraper, not a licensed feed — see the ToS caveat in the dated note. No demo fallback still — if this provider fails/returns nothing, the tab is honestly empty rather than showing synthetic data. As of 2026-08-02, within-budget packages are also merged into "Complete trips" and ranked by the optimizer agent alongside self-organized combos, not just shown in their own tab — see the dated note below. |
 | Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-5-mini` via `OPENROUTER_API_KEY`, configurable via `OPENROUTER_MODEL`). Falls back to a local heuristic scorer if the key is missing or the call fails. As of 2026-08-01 its ranking is authoritative over the displayed trip order (previously computed but discarded — see the dated note below). `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
+| Transport (non-flight) | **Ground transport (OpenRouteService)** | **Real routing, estimated pricing — wired 2026-08-02, not yet live-verified** (needs the user's own `OPENROUTESERVICE_API_KEY`, a free self-serve signup — account creation isn't something an agent does, see the dated note below). `lib/providers/transport/ground-transport.ts`. Covers transfer/bus/train for **any** origin/destination, including places outside `CITY_DATABASE` — geocoded via OSM Nominatim (keyless) instead of requiring an IATA code. Distance/duration are real for the private-transfer offer (OpenRouteService driving directions, mode `"transfer"` — a real bug caught live during the first browser test: this was originally tagged `mode: "car"`, which the UI's transport picker treats as a *separate*, unchecked-by-default "self-drive" checkbox from "Transfer" (door-to-door) — silently excluding it from a default search despite "Transfer" being checked; fixed same-session); all prices (transfer/bus/train) and bus/train durations are heuristic estimates from that real distance, clearly labeled as such — no self-serve API returns real worldwide point-to-point ticket prices for arbitrary train/bus/shuttle routes (Rome2Rio and comparable platforms are partner/sales-gated, not self-serve; confirmed live 2026-08-02, see the dated note below). |
 
 **Progressive search — decoupled packages + agent review from the results
 page (2026-08-02).** Investigated a real complaint: a Szczecin→Barcelona
@@ -407,6 +408,70 @@ typed a different origin by the time geolocation resolves (it can take a
 few seconds), their edit wins and this is a no-op. No permission prompt is
 forced; the browser's native geolocation dialog only appears because the
 API was called, same as any other site asking for location.
+
+**Ground transport for non-airport cities (2026-08-02).** User request: origin/
+destination shouldn't be limited to the ~130 cities in `CITY_DATABASE` — typing
+anywhere with no airport should still find a real way to get there (public
+transport, private shuttles, trains, buses, taxis — "just like Rome2Rio does
+it") and compare cost to pick the cheapest.
+
+Researched real, self-serve multi-modal routing/fare APIs before writing any
+code (same discipline as every other provider in this project) — reported
+back to the user with findings before implementing:
+- **Rome2Rio itself**: no longer self-serve. Its old free API dashboard
+  (`free-dashboard.rome2rio.com`) doesn't resolve anymore and its docs pages
+  404 — confirmed live 2026-08-02. Partner/sales-gated now, same dead end as
+  Booking.com/Skyscanner/RateHawk.
+- **Navitia.io**: genuine free self-serve signup, but public-transit-only and
+  coverage is only as good as the open GTFS feeds available per region
+  (strong in France, patchy elsewhere); fare data inconsistent per feed.
+- **TripGo / Moovit / TransportAPI**: genuine multi-modal, but enterprise/
+  sales-gated, not self-serve.
+- **Google Routes/Directions API**: self-serve (Cloud Console key,
+  pay-as-you-go with a free tier), but needs a billing account and transit
+  fare data only exists for a small set of systems Google has fare
+  partnerships with — not global coverage. User picked the free option
+  instead (below) over setting up billing.
+- **Conclusion, put to the user directly**: no self-serve API returns real
+  ticket prices for arbitrary worldwide train/bus/shuttle routes — that data
+  only exists behind sales-gated platforms. What *is* real and self-serve
+  everywhere is distance/duration.
+
+**What was built**, on the user's explicit choice of backend (no-billing
+option over Google's paid one): `lib/providers/geocoding.ts` (`geocodePlace`,
+OSM Nominatim search, no API key — just a compliant `User-Agent`, in-memory
+cache) + `lib/providers/transport/ground-transport.ts` (`groundTransportProvider`,
+registered in `transportProviders` alongside Duffel). For any origin/
+destination: resolve coordinates (fast path checks `CITY_DATABASE`'s existing
+lat/lng first, falls back to Nominatim for anything else) → real driving
+distance/duration from OpenRouteService (`OPENROUTESERVICE_API_KEY`, free
+self-serve signup at `openrouteservice.org/dev/#/signup` — **the user needs to
+do this themselves**, account creation isn't something an agent does; until
+then this provider reports "Missing OPENROUTESERVICE_API_KEY", same honest-
+config-error pattern as every other unconfigured provider) → three
+`TransportOffer`s (car/bus/train) with clearly-labeled estimated prices
+derived from that real distance (indicative EU per-km rates, documented as
+constants in the provider file) and, for bus/train, an estimated duration
+(a multiplier on the one real number available — driving duration). The
+estimate disclosure rides in `offer.outboundSummary`, which the existing
+adapter (`lib/adapters/results.ts`) already threads into `providerNotes` —
+no adapter changes needed, same freeform-notes pattern already used for
+other providers, not a new fabrication mechanism. Ground routes beyond
+1,500 km are skipped (not a realistic primary option vs. flying); a 404 from
+OpenRouteService (no drivable route, e.g. separated by open water) quietly
+returns no ground offers rather than erroring.
+
+Verified live (2026-08-02): searching `Zakopane` (a real Polish town with no
+airport, not in `CITY_DATABASE`) → Barcelona correctly produced
+`duffel-flights: "No IATA code configured for Zakopane"` (honest, expected —
+flights genuinely can't serve a place with no airport) alongside
+`ground-transport: "Missing OPENROUTESERVICE_API_KEY"` (honest — key not yet
+supplied) rather than a crash or silently-empty transport tab; confirmed
+Nominatim itself resolves "Zakopane" to its real coordinates
+(49.2969, 19.9505) via a direct call. **Not yet live-verified end-to-end**
+(the actual OpenRouteService routing call + cost math) — blocked on the
+user supplying a real `OPENROUTESERVICE_API_KEY`; do that and re-run this
+same Zakopane→Barcelona search before considering this fully done.
 
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
@@ -902,6 +967,11 @@ call failed) instead of silently showing nothing.
 - **Amadeus, Booking.com, Skyscanner**: dead ends for an individual/non-business
   user right now (see provider table). Don't spend time on these unless that
   changes.
+- **Ground transport pricing is a heuristic estimate, not a real fare** —
+  see the 2026-08-02 dated note above. No self-serve API exists for real
+  worldwide point-to-point train/bus/shuttle ticket prices; only distance/
+  duration are real (OpenRouteService). Also **not yet live-verified**
+  end-to-end — needs the user's own `OPENROUTESERVICE_API_KEY`.
 - **No tests.** No unit tests, no e2e tests, no CI. Everything has been
   verified by manual browser testing during development.
 - **No mobile-specific testing.** Responsive classes exist throughout but the
@@ -940,6 +1010,12 @@ Full variable list with defaults: `.env.example`.
 
 These are independent enough to hand to separate sessions:
 
+0. **Ground transport needs a real `OPENROUTESERVICE_API_KEY`** — sign up free
+   at `openrouteservice.org/dev/#/signup` (account creation isn't something
+   an agent does), add it to `.env.local`, then re-run a search for a place
+   outside `CITY_DATABASE` (e.g. origin "Zakopane") to confirm real car/bus/
+   train estimates appear instead of the current "Missing
+   OPENROUTESERVICE_API_KEY" status. See the 2026-08-02 dated note above.
 1. **Hotelbeds destination coverage** — Hotelbeds is verified working, but
    only Barcelona has a `hotelbedsDestinationCode` hint. Look up and add
    codes for other frequently-searched cities in

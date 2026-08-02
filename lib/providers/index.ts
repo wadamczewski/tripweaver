@@ -4,6 +4,7 @@ import { hotelbedsAccommodationProvider } from "./accommodations/hotelbeds";
 import { serpapiHotelsProvider } from "./accommodations/serpapi-hotels";
 import { amadeusFlightsProvider } from "./flights/amadeus";
 import { duffelFlightsProvider } from "./flights/duffel";
+import { groundTransportProvider } from "./transport/ground-transport";
 import { apifyDachPackagesProvider } from "./packages/apify-dach-packages";
 
 // amadeusFlightsProvider, bookingAccommodationProvider, and skyscannerHotelsProvider
@@ -17,8 +18,13 @@ import { apifyDachPackagesProvider } from "./packages/apify-dach-packages";
 // category anymore — Duffel and Hotelbeds/SerpApi are real and working, so a
 // synthetic stand-in isn't needed; if every configured real provider for a
 // category fails, that category is honestly empty instead of showing
-// fabricated data.
-export const transportProviders = [amadeusFlightsProvider, duffelFlightsProvider];
+// fabricated data. groundTransportProvider (needs OPENROUTESERVICE_API_KEY)
+// covers car/bus/train for ANY origin/destination — including places
+// outside CITY_DATABASE that Duffel can't serve at all — using a real
+// driving distance/duration (OpenRouteService) with clearly-labeled
+// estimated fares, since no self-serve API returns real worldwide
+// point-to-point ticket prices for train/bus/shuttle routes.
+export const transportProviders = [amadeusFlightsProvider, duffelFlightsProvider, groundTransportProvider];
 export const accommodationProviders = [
   bookingAccommodationProvider,
   skyscannerHotelsProvider,
