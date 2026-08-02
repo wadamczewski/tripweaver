@@ -1,6 +1,6 @@
 # TripWeaver — Project Status
 
-Last updated: 2026-08-01. This file is meant to give a fresh chat session (or a
+Last updated: 2026-08-02. This file is meant to give a fresh chat session (or a
 different person) full context without re-reading the whole history. Read this
 first before touching code.
 
@@ -604,22 +604,35 @@ These are independent enough to hand to separate sessions:
    `childDiscount`. A real fix needs a provider that actually sells bundles
    under one set of terms, not two services glued together.
 
-   **Candidate A — TUI Developer Portal** (`developer.tui`),
-   *recommended first attempt*: official tour operator, exact semantic
-   match via their "Meta Partner Package Live Search" API (real-time
-   package pricing/availability). Access: register at
-   `signup.developer.tui` (email/username, no business/tax ID seen in the
-   registration flow) — but TUI's partner management team then manually
-   validates and approves the *specific API* you request; timeline/odds
-   unknown, similar to the RateHawk situation from the hotels search
-   earlier this session. Ask for the Meta Partner Package Live Search API
-   specifically, not just a general account. Once approved: build
-   `lib/providers/packages/tui.ts` following the `hotelbedsAccommodationProvider`
-   pattern (`TravelProvider<PackageHoliday-shaped offer>`), register in
-   `packageProviders` (`lib/providers/index.ts`, currently `[]`), map
-   response fields onto `PackageHoliday`. Verify field-by-field against a
-   live call before trusting the docs, same discipline as every other
-   provider in this project.
+   **Candidate A — TUI Developer Portal** (`developer.tui`): official tour
+   operator, exact semantic match via their "Meta Partner Package Live
+   Search" API (real-time package pricing/availability) — but currently
+   **blocked by a bug on TUI's own signup form**, not by anything on our
+   end. **Status as of 2026-08-02**: user registered at
+   `signup.developer.tui`, requested the `search-holiday-offers` API
+   product (the dropdown's internal name for what the catalog page calls
+   "Meta Partner Package Live Search" — no business/tax ID was required at
+   signup, just name/email/company). Submitting the form does nothing
+   visible — traced this to a real bug, confirmed independently twice
+   (once via the user's own DevTools, once via Claude driving the user's
+   real Chrome through the `claude-in-chrome` MCP surface, both giving
+   identical results): the form's own background call,
+   `POST https://prod.api.tui/tuiapis/v2/access-requests`, returns
+   **401** (`WWW-Authenticate: Bearer realm="null", error="invalid_token",
+   error_description="oauth.v2.InvalidAccessToken..."`) — the signup page
+   isn't attaching a valid token to its own submission request, and shows
+   no error to the user when it fails, which is why it looked like
+   "nothing happens" rather than an obvious error. Reported to
+   `apiplatform@tui.com` on 2026-08-02 with the exact repro. **Nothing to
+   do here until TUI responds** — this is entirely on their side to fix
+   before the access request can even be submitted, let alone approved.
+   Once (if) it goes through: build `lib/providers/packages/tui.ts`
+   following the `hotelbedsAccommodationProvider` pattern
+   (`TravelProvider<PackageHoliday-shaped offer>`), register in
+   `packageProviders` (`lib/providers/index.ts`) alongside
+   `apifyDachPackagesProvider`, map response fields onto `PackageHoliday`.
+   Verify field-by-field against a live call before trusting the docs,
+   same discipline as every other provider in this project.
 
    **Candidate B — Apify "DACH Package Holiday Price API"** — **real,
    wired, verified working end-to-end (2026-08-01)**.
