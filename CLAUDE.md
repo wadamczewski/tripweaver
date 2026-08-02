@@ -31,3 +31,8 @@ noise just to satisfy this rule.
 - Don't run `npm run build` while the dev server (`npm run dev`) is running —
   they share `.next` and corrupt each other's build state. Stop the dev
   server, `rm -rf .next`, then rebuild/restart.
+- Don't run local `npm run dev` and `docker compose up` at the same time —
+  both bind port 3210, so the second one to start will fail. The
+  container's `.next`/`node_modules` are isolated Docker volumes, not
+  bind-mounted, so there's no build-state corruption risk between them
+  the way there is with `npm run build`, but only one can hold the port.

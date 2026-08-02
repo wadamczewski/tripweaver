@@ -9,6 +9,16 @@ npm install
 npm run dev
 ```
 
+Runs at `http://localhost:3210` (the port is set in `.claude/launch.json` / the `dev` script, not the Next.js default 3000).
+
+**Or via Docker Compose**, if you'd rather start/stop it from Docker Desktop instead of a terminal:
+
+```bash
+docker compose up -d --build
+```
+
+Same app, same port (3210), hot-reload included (the source is bind-mounted, `node_modules`/`.next` are container-only so a macOS host and Linux container don't clash). `.env.local` is picked up automatically the same way `npm run dev` picks it up locally — nothing extra to configure. Stop it with `docker compose down`, or toggle it from Docker Desktop's UI once it's been started once. Rebuild after installing a new dependency with `docker compose up -d --build` again.
+
 Without provider API keys the app still runs: each provider reports a clear config error (e.g. `Missing AMADEUS_CLIENT_ID`) instead of crashing, and the results screen shows an honest "no combined trip options yet" state with the per-provider status. Each category (flights, hotels) shows real provider results when any real provider succeeds; the built-in demo provider for that category only fills in when every real provider for it fails or isn't configured (`lib/search.ts`).
 
 ## Provider setup
