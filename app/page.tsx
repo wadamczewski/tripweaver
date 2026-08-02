@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   Compass,
+  Info,
   Loader2,
   Pencil,
   Users,
@@ -25,18 +26,32 @@ import {
   upsertSavedTrip
 } from "@/lib/storage";
 import { useDestinationImages } from "@/lib/useDestinationImages";
-import type { OptimizerWeights, SearchCriteria, SearchResults, TripOption } from "@/lib/types";
-import type { OptimizerAgentReview as OptimizerAgentReviewResult, TripSearchResults } from "@/lib/trip/types";
+import type { OptimizerWeights, SearchCriteria, TripOption } from "@/lib/types";
+import type {
+  OptimizerAgentReview as OptimizerAgentReviewResult,
+  PackageSearchResults,
+  ProviderStatus,
+  TripSearchCoreResults,
+  TripSearchCriteria,
+  TripSearchResults
+} from "@/lib/trip/types";
 import { validateSearchCriteria } from "@/lib/validation";
 
 type SearchState = "idle" | "loading" | "ready" | "error";
 
 export default function Home() {
   const [criteria, setCriteria] = useState<SearchCriteria>(DEFAULT_SEARCH);
+  // The criteria a search was actually submitted with, separate from the
+  // live `criteria` state above (which updates on every keystroke while
+  // editing) — results must stay pinned to what was searched, not follow
+  // in-progress edits to the form.
+  const [submittedCriteria, setSubmittedCriteria] = useState<SearchCriteria>(DEFAULT_SEARCH);
+  const [heroImage, setHeroImage] = useState("");
   const [weights, setWeights] = useState<OptimizerWeights>(DEFAULT_WEIGHTS);
-  const [results, setResults] = useState<SearchResults | null>(null);
   const [realResults, setRealResults] = useState<TripSearchResults | null>(null);
   const [status, setStatus] = useState<SearchState>("idle");
+  const [isPackagesPending, setIsPackagesPending] = useState(false);
+  const [isAgentReviewing, setIsAgentReviewing] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [savedTrips, setSavedTrips] = useState<TripOption[]>([]);
@@ -45,6 +60,16 @@ export default function Home() {
   useEffect(() => {
     setSavedTrips(loadSavedTrips());
   }, []);
+
+  // Transport/accommodation land fast (a couple of seconds); packages and
+  // the optimizer review are fetched separately and merged in as they
+  // resolve (see handleSearch/loadPackages) — this recomputes automatically
+  // each time, so the UI updates the moment either one lands instead of
+  // waiting for everything.
+  const results = useMemo(() => {
+    if (!realResults) return null;
+    return toSearchResults(submittedCriteria, heroImage, realResults);
+  }, [realResults, submittedCriteria, heroImage]);
 
   const scoredResults = useMemo(() => {
     if (!results) {
@@ -88,34 +113,74 @@ export default function Home() {
     const nextWeights = weightsFromPreferences(nextCriteria.preferences);
     setWeights(nextWeights);
 
+    const coreCriteria = toTripSearchCriteria(nextCriteria);
+
     try {
+      // Transport + accommodation only — fast (a couple of seconds).
+      // Packages and the Trip Optimizer agent are fetched separately below
+      // once this lands, instead of making the user wait on whichever of
+      // those is slowest before seeing anything.
       const response = await fetch("/api/trip-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...toTripSearchCriteria(nextCriteria),
-          weights: toRealWeights(nextWeights)
-        })
+        body: JSON.stringify(coreCriteria)
       });
 
       if (!response.ok) {
         throw new Error("Trip search request failed");
       }
 
-      const nextRealResults = (await response.json()) as TripSearchResults;
+      const coreResults = (await response.json()) as TripSearchCoreResults;
+      const nextRealResults: TripSearchResults = {
+        ...coreResults,
+        packageOptions: [],
+        optimizerReview: undefined
+      };
       const image = destinationImages[destinationImageIndex] ?? destinationImages[0] ?? "";
       const nextResults = toSearchResults(nextCriteria, image, nextRealResults);
 
+      setSubmittedCriteria(nextCriteria);
+      setHeroImage(image);
       setRealResults(nextRealResults);
-      setResults(nextResults);
       setStatus("ready");
       setIsEditingSearch(false);
       setCompareIds(nextResults.tripOptions.slice(0, 2).map((trip) => trip.id));
+
+      if (coreCriteria.packageHolidays !== false) {
+        void loadPackages(coreCriteria);
+      }
     } catch {
       setStatus("error");
       setErrors([
         "TripWeaver could not reach the provider adapters. Confirm the API keys in .env.local and try again."
       ]);
+    }
+  }
+
+  async function loadPackages(coreCriteria: TripSearchCriteria) {
+    setIsPackagesPending(true);
+
+    try {
+      const response = await fetch("/api/trip-packages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(coreCriteria)
+      });
+
+      if (!response.ok) {
+        throw new Error("Package search failed");
+      }
+
+      const packageResults = (await response.json()) as PackageSearchResults;
+      setRealResults((current) =>
+        current ? { ...current, packageOptions: packageResults.packageOptions } : current
+      );
+    } catch {
+      // Leave packageOptions empty — the Packages tab already shows an
+      // honest "no package holidays" state, which reads correctly whether
+      // that's because the search found nothing or the request failed.
+    } finally {
+      setIsPackagesPending(false);
     }
   }
 
@@ -178,10 +243,11 @@ export default function Home() {
               </span>
             </div>
             <h2 className="mt-6 text-2xl font-semibold tracking-tight text-ink">
-              Weaving transport, stays and packages
+              Weaving transport and stays
             </h2>
             <p className="mt-2 text-ink/64">
-              Provider adapters are pricing each traveler separately and checking room occupancy rules.
+              Provider adapters are pricing each traveler separately and checking room occupancy rules. Package
+              holidays and the AI recommendation keep loading on the results page — no need to wait here.
             </p>
             <div className="mx-auto mt-6 h-1.5 w-48 overflow-hidden rounded-full bg-line">
               <div className="h-full w-1/3 animate-shimmer rounded-full bg-[linear-gradient(90deg,transparent,theme(colors.accent),transparent)] bg-[length:200%_100%]" />
@@ -232,29 +298,7 @@ export default function Home() {
             </div>
           )}
 
-          {status === "ready" && scoredResults && !featuredTrip && realResults && (
-            <div className="animate-scale-in rounded-[2rem] border border-line bg-white/90 p-8 shadow-soft">
-              <h2 className="text-xl font-semibold text-ink">No combined trip options yet</h2>
-              <p className="mt-2 text-ink/66">
-                None of the configured providers returned results for this search. Check the provider status below.
-              </p>
-              <div className="mt-5 space-y-2">
-                {realResults.providerStatuses.map((provider) => (
-                  <div
-                    key={provider.providerId}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper/70 px-4 py-3 text-sm"
-                  >
-                    <span className="font-semibold text-ink">{provider.providerId}</span>
-                    <span className={provider.ok ? "text-sageDark" : "text-accentDark"}>
-                      {provider.message ?? (provider.ok ? "OK" : "Failed")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {status === "ready" && scoredResults && featuredTrip && realResults && (
+          {status === "ready" && scoredResults && realResults && (
             <div className="grid animate-fade-up grid-cols-1 gap-6 lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start">
               <OptimizerPanel
                 className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto"
@@ -264,19 +308,35 @@ export default function Home() {
                 comparedTrips={comparedTrips}
               />
               <div className="min-w-0 space-y-6">
-                <OptimizerAgentReview
-                  criteria={toTripSearchCriteria(criteria)}
-                  transportOptions={realResults.transportOptions}
-                  accommodationOptions={realResults.accommodationOptions}
-                  tripOptions={realResults.tripOptions}
-                  weights={toRealWeights(weights)}
-                  initialReview={realResults.optimizerReview}
-                  onReview={handleAgentReview}
-                />
+                {!featuredTrip && (
+                  <NoCombinedTripsNotice
+                    hasRawResults={
+                      realResults.transportOptions.length > 0 ||
+                      realResults.accommodationOptions.length > 0 ||
+                      realResults.packageOptions.length > 0
+                    }
+                    providerStatuses={realResults.providerStatuses}
+                  />
+                )}
+                {featuredTrip && (
+                  <OptimizerAgentReview
+                    criteria={toTripSearchCriteria(submittedCriteria)}
+                    transportOptions={realResults.transportOptions}
+                    accommodationOptions={realResults.accommodationOptions}
+                    tripOptions={realResults.tripOptions}
+                    packageOptions={realResults.packageOptions}
+                    weights={toRealWeights(weights, submittedCriteria.checkedLuggage)}
+                    initialReview={realResults.optimizerReview}
+                    onReview={handleAgentReview}
+                    onReviewingChange={setIsAgentReviewing}
+                  />
+                )}
                 <ResultsTabs
                   results={scoredResults}
                   compareIds={compareIds}
                   savedIds={savedTrips.map((trip) => trip.id)}
+                  isPackagesPending={isPackagesPending}
+                  isAgentReviewing={isAgentReviewing}
                   onCompare={handleCompare}
                   onSave={handleSave}
                   onRemoveSaved={handleRemoveSaved}
@@ -287,6 +347,58 @@ export default function Home() {
         </div>
       </section>
     </main>
+  );
+}
+
+function NoCombinedTripsNotice({
+  hasRawResults,
+  providerStatuses
+}: {
+  hasRawResults: boolean;
+  providerStatuses: ProviderStatus[];
+}) {
+  if (!hasRawResults) {
+    return (
+      <div className="animate-scale-in rounded-[2rem] border border-line bg-white/90 p-8 shadow-soft">
+        <h2 className="text-xl font-semibold text-ink">No combined trip options yet</h2>
+        <p className="mt-2 text-ink/66">
+          None of the configured providers returned results for this search. Check the provider status below.
+        </p>
+        <div className="mt-5 space-y-2">
+          {providerStatuses.map((provider) => (
+            <div
+              key={provider.providerId}
+              className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper/70 px-4 py-3 text-sm"
+            >
+              <span className="font-semibold text-ink">{provider.providerId}</span>
+              <span className={provider.ok ? "text-sageDark" : "text-accentDark"}>
+                {provider.message ?? (provider.ok ? "OK" : "Failed")}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Transport and/or accommodation providers did find real results — the
+  // combined "Complete trips" cross-product just came up empty, almost
+  // always because the budget range or transport-mode filter excluded
+  // every combination. That's not a "nothing available" situation, so it
+  // shouldn't block the page: the real Transport/Accommodation results are
+  // still browsable in the tabs below.
+  return (
+    <div className="animate-scale-in flex items-start gap-3 rounded-[2rem] border border-line bg-white/90 p-6 shadow-soft">
+      <Info className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+      <div>
+        <h2 className="text-lg font-semibold text-ink">No trips match your current filters</h2>
+        <p className="mt-1 text-sm text-ink/66">
+          Every flight + stay combination (and any package holidays found) fell outside your budget range or the
+          transport modes you selected. Try widening the budget or selecting more transport modes — your real
+          Transport and Accommodation results are still available in the tabs below.
+        </p>
+      </div>
+    </div>
   );
 }
 

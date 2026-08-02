@@ -283,38 +283,53 @@ export function buildRecommendationBadges(options: TripOption[]): Record<string,
   return badgesById;
 }
 
-export function getRecommendationTiles(options: TripOption[]) {
+export function getRecommendationTiles(
+  options: TripOption[],
+  isPackagesPending = false,
+  isAgentReviewing = false
+) {
   // options is already ordered by the Trip Optimizer agent's ranking
-  // (see applyAgentRanking in lib/scoring.ts).
+  // (see applyAgentRanking in lib/scoring.ts) — package holidays are
+  // regular TripOptions (kind: "package") merged in alongside
+  // self-organized combos, so they participate in every tile below,
+  // including potentially "AI recommended"/"Cheapest"/"Fastest".
   const aiRecommended = options[0];
   const cheapest = [...options].sort((a, b) => a.totalPrice.amount - b.totalPrice.amount)[0];
   const fastest = [...options].sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes)[0];
-  const packageHoliday = options.find((option) => option.kind === "package" || option.packageHoliday);
+  const packageHoliday = options.find((option) => option.kind === "package");
 
   return [
     {
       id: "ai-recommended",
       label: "AI recommended",
-      option: aiRecommended,
-      metric: aiRecommended ? `${aiRecommended.score}/100 score` : "Pending"
+      name: isAgentReviewing ? "Ranking…" : aiRecommended?.label,
+      metric: aiRecommended ? `${aiRecommended.score}/100 score` : "Pending",
+      pending: isAgentReviewing
     },
     {
       id: "cheapest",
       label: "Cheapest",
-      option: cheapest,
-      metric: cheapest ? formatMoney(cheapest.totalPrice) : "Pending"
+      name: cheapest?.label,
+      metric: cheapest ? formatMoney(cheapest.totalPrice) : "Pending",
+      pending: false
     },
     {
       id: "fastest",
       label: "Fastest",
-      option: fastest,
-      metric: fastest ? formatDuration(fastest.totalDurationMinutes) : "Pending"
+      name: fastest?.label,
+      metric: fastest ? formatDuration(fastest.totalDurationMinutes) : "Pending",
+      pending: false
     },
     {
       id: "package-holiday",
       label: "Package holiday",
-      option: packageHoliday,
-      metric: packageHoliday ? formatMoney(packageHoliday.totalPrice) : "Pending"
+      name: packageHoliday ? packageHoliday.label : isPackagesPending ? "Searching…" : undefined,
+      metric: packageHoliday
+        ? formatMoney(packageHoliday.totalPrice)
+        : isPackagesPending
+          ? "Searching…"
+          : "No match",
+      pending: isPackagesPending && !packageHoliday
     }
   ];
 }

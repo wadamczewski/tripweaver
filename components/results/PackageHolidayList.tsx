@@ -17,6 +17,7 @@ import {
   Utensils
 } from "lucide-react";
 import type { PackageHoliday } from "@/lib/types";
+import { packageAsAccommodation } from "@/lib/adapters/results";
 import {
   DEFAULT_ESTIMATE_LABEL,
   formatMoney,
@@ -25,6 +26,7 @@ import {
   getRoomSummary,
   getTravelerPriceTotal
 } from "./helpers";
+import { HotelDetailsModal } from "./HotelDetailsModal";
 import type { ProviderActionPayload } from "./types";
 
 type PackageHolidayListProps = {
@@ -68,7 +70,10 @@ export function PackageHolidayList({
         return (
           <article key={option.id} className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
             <div className="grid gap-0 lg:grid-cols-[14rem_1fr_auto]">
-              <div className="relative min-h-[12rem] bg-mist lg:min-h-full">
+              <HotelDetailsModal
+                option={packageAsAccommodation(option)}
+                className="min-h-[12rem] overflow-hidden bg-mist lg:min-h-full"
+              >
                 <img
                   src={option.imageUrl}
                   alt={option.hotelName}
@@ -77,7 +82,7 @@ export function PackageHolidayList({
                 <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-ink shadow-sm">
                   {option.tourOperator}
                 </div>
-              </div>
+              </HotelDetailsModal>
 
               <div className="min-w-0 p-5">
                 <div className="mb-3 flex flex-wrap items-center gap-2">

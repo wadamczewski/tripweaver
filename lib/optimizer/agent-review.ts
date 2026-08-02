@@ -1,7 +1,9 @@
+import { convertMoney } from "../providers/fx";
 import type {
   AccommodationOffer,
   OptimizerAgentReview,
   OptimizerWeights,
+  PackageOffer,
   TransportOffer,
   TripOption,
   TripSearchCriteria,
@@ -12,6 +14,11 @@ type ReviewInput = {
   transportOptions: TransportOffer[];
   accommodationOptions: AccommodationOffer[];
   tripOptions: TripOption[];
+  // Bundled tour-operator deals — a genuine alternative to a self-organized
+  // tripOption, not a separate category the agent should ignore. Optional
+  // so the "Tune the recommendation" re-review call (which predates
+  // packages) still works without passing them.
+  packageOptions?: PackageOffer[];
   weights: OptimizerWeights;
   changeReason?: string;
 };
@@ -45,30 +52,76 @@ function fallbackScore(option: TripOption, cheapest: number, fastest: number, we
   );
 }
 
-function heuristicReview(input: ReviewInput): OptimizerAgentReview {
-  const cheapest = Math.min(...input.tripOptions.map((option) => option.totalPrice.amount).filter(Boolean));
+function fallbackScorePackage(offer: PackageOffer, priceInCurrency: number, cheapest: number, weights: OptimizerWeights) {
+  const priceScore = cheapest > 0 ? clamp(cheapest / priceInCurrency) : 0.5;
+  // Flight duration isn't part of the package actor's data — neutral
+  // default rather than a fabricated number.
+  const speedScore = 0.55;
+  const comfortScore = clamp(((offer.hotelRating ?? 3) - 1) / 4);
+  const luggageScore = offer.luggageIncluded ? 1 : 0.45;
+  const familyScore = offer.airportTransferIncluded ? 0.85 : 0.6;
+
+  return (
+    priceScore * weights.price +
+    speedScore * weights.speed +
+    comfortScore * weights.comfort +
+    luggageScore * weights.luggage +
+    familyScore * weights.familyFit
+  );
+}
+
+// Shared by heuristicReview (the actual ranking when there's no API key)
+// and reviewPrompt (as a grounding hint for the real LLM call) — both need
+// the same cheapest/fastest baselines and currency-converted package
+// prices, and computing them twice risked the two paths drifting apart.
+function computeRankingContext(input: ReviewInput) {
+  const packageOptions = input.packageOptions ?? [];
+  // Package prices come from a EUR-priced source regardless of the search
+  // currency — normalize before comparing against PLN (or whatever the
+  // search uses) trip totals, same reasoning as the rich-UI currency fix.
+  const packagePricesInCurrency = packageOptions.map(
+    (offer) => convertMoney(offer.totalPrice, input.criteria.currency).amount,
+  );
+
+  const allPrices = [...input.tripOptions.map((option) => option.totalPrice.amount), ...packagePricesInCurrency].filter(
+    Boolean,
+  );
+  const cheapest = allPrices.length > 0 ? Math.min(...allPrices) : 0;
   const fastest = Math.min(
     ...input.tripOptions.map((option) => option.transport.durationMinutes ?? Number.POSITIVE_INFINITY),
   );
-  const ranked = [...input.tripOptions]
-    .map((option) => ({
-      ...option,
-      score: fallbackScore(option, cheapest, fastest, input.weights),
-    }))
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
+  return { packageOptions, packagePricesInCurrency, cheapest, fastest };
+}
+
+function heuristicReview(input: ReviewInput): OptimizerAgentReview {
+  const { packageOptions, packagePricesInCurrency, cheapest, fastest } = computeRankingContext(input);
+
+  const rankedTrips = input.tripOptions.map((option) => ({
+    id: option.id,
+    label: `${option.transport.providerName} + ${option.accommodation.providerName}`,
+    score: fallbackScore(option, cheapest, fastest, input.weights),
+  }));
+  const rankedPackages = packageOptions.map((offer, index) => ({
+    id: offer.id,
+    label: `${offer.tourOperator} package — ${offer.hotelName}`,
+    score: fallbackScorePackage(offer, packagePricesInCurrency[index], cheapest, input.weights),
+  }));
+
+  const ranked = [...rankedTrips, ...rankedPackages].sort((a, b) => b.score - a.score);
   const winner = ranked[0];
 
   return {
     recommendedTripId: winner?.id,
-    headline: winner
-      ? `Best current match: ${winner.transport.providerName} + ${winner.accommodation.providerName}`
-      : "No trips ranked yet",
+    headline: winner ? `Best current match: ${winner.label}` : "No trips ranked yet",
     summary: winner
       ? "The fallback optimizer ranked the available results with the current Trip Optimizer settings. Add OPENAI_API_KEY to enable the agent review."
       : "No provider returned enough results to review.",
     rankedTripIds: ranked.map((option) => option.id),
-    warnings: input.tripOptions.length === 0 ? ["No combined trip options were available."] : [],
+    warnings:
+      input.tripOptions.length === 0 && packageOptions.length === 0
+        ? ["No combined trip options were available."]
+        : [],
     appliedWeights: input.weights,
     generatedAt: new Date().toISOString(),
     model: "heuristic-fallback",
@@ -88,16 +141,28 @@ function extractResponseText(data: any) {
 }
 
 function reviewPrompt(input: ReviewInput) {
+  // Grounding hint: the same weighted-score formula used for the no-API-key
+  // fallback, computed here too and handed to the real model as a
+  // `localScore` per option. With 500+ items in one prompt, an LLM given
+  // only qualitative field values and a vague "apply these weights"
+  // instruction tends to fall back on price as the one number it can
+  // compare at a glance, regardless of what the weights actually say —
+  // observed live as rankings that looked price-sorted almost every time,
+  // even with balanced or price-deprioritized weights. Giving it a
+  // concrete 0-1 number that already combines every weighted axis removes
+  // most of the room for that shortcut.
+  const { packageOptions, packagePricesInCurrency, cheapest, fastest } = computeRankingContext(input);
+
   return [
     {
       role: "system",
       content:
-        "You are TripWeaver's trip optimization agent.\n\nYour job is to rank real travel search results for a family trip. Use only the provided options. Do not invent prices, routes, hotels, amenities, policies, or availability.\n\nApply the Trip Optimizer weights exactly:\n- price: lower total trip price is better\n- speed: shorter transport duration and fewer stops are better\n- comfort: better accommodation quality, ratings, and room fit are better\n- luggage: included checked luggage is better when requested\n- familyFit: age-aware pricing, suitable room allocation, and lower friction for children are better\n\nExplain the tradeoff behind the recommendation in plain language. If results are incomplete, currencies do not match, providers failed, or important family constraints are missing, include warnings.\n\nReturn only valid JSON matching the provided schema.",
+        "You are TripWeaver's trip optimization agent.\n\nYour job is to rank real travel search results for a family trip. Use only the provided options. Do not invent prices, routes, hotels, amenities, policies, or availability.\n\nTwo kinds of options are provided, and you must rank them together in one list, not as separate categories: tripOptions (self-organized flight + hotel combos) and packageOptions (bundled tour-operator holiday packages, priced as a single total). A package's flight duration and per-line costs aren't broken out — judge it mainly on total price, hotel rating, and whether luggage/transfers are included.\n\nEach option includes a localScore (0-1): price, speed, comfort, luggage, and familyFit already combined per the given weights, using the SAME formula for every option. Use it as your primary ranking signal — sort by it first, then reorder only where a field it can't see (a real warning, a policy detail, an especially poor family fit) genuinely changes the call. Do not silently revert to ranking by price alone; if price ends up dominating your final order, it should be because the weights say price matters most, not because it was the easiest number to compare across hundreds of options.\n\nApply the Trip Optimizer weights exactly, same definitions localScore already used:\n- price: lower total trip price is better\n- speed: shorter transport duration and fewer stops are better (packages have no known duration — treat as average)\n- comfort: better accommodation quality, ratings, and room fit are better\n- luggage: included checked luggage is better when requested\n- familyFit: age-aware pricing, suitable room allocation, and lower friction for children are better (an included airport transfer counts in favor of a package here)\n\nExplain the tradeoff behind the recommendation in plain language. If results are incomplete, currencies do not match, providers failed, or important family constraints are missing, include warnings.\n\nReturn only valid JSON matching the provided schema. rankedTripIds must be a single list mixing tripOptions ids and packageOptions ids, ordered best first.",
     },
     {
       role: "user",
       content: JSON.stringify({
-        task: "Choose and rank the best trip options.",
+        task: "Choose and rank the best trip options, including package holidays, as one combined list.",
         outputSchema: {
           recommendedTripId: "string",
           headline: "string",
@@ -111,6 +176,7 @@ function reviewPrompt(input: ReviewInput) {
         tripOptions: input.tripOptions.map((option) => ({
           id: option.id,
           totalPrice: option.totalPrice,
+          localScore: Number(fallbackScore(option, cheapest, fastest, input.weights).toFixed(3)),
           transport: {
             provider: option.transport.providerName,
             title: option.transport.title,
@@ -126,6 +192,22 @@ function reviewPrompt(input: ReviewInput) {
             rating: option.accommodation.rating,
             roomName: option.accommodation.roomName,
           },
+        })),
+        packageOptions: packageOptions.map((offer, index) => ({
+          id: offer.id,
+          tourOperator: offer.tourOperator,
+          hotelName: offer.hotelName,
+          hotelRating: offer.hotelRating,
+          boardType: offer.boardType,
+          nights: offer.nights,
+          // Converted to the search currency — the source actor prices
+          // packages in EUR regardless of what currency the search uses.
+          totalPrice: convertMoney(offer.totalPrice, input.criteria.currency),
+          localScore: Number(
+            fallbackScorePackage(offer, packagePricesInCurrency[index], cheapest, input.weights).toFixed(3),
+          ),
+          luggageIncluded: offer.luggageIncluded,
+          airportTransferIncluded: offer.airportTransferIncluded,
         })),
       }),
     },
@@ -168,8 +250,10 @@ export async function reviewTripOptionsWithAgent(input: ReviewInput): Promise<Op
   const weights = input.weights ?? defaultWeights;
   const payload = { ...input, weights };
 
-  if (!process.env.OPENROUTER_API_KEY || input.tripOptions.length === 0) {
-    console.log("[optimizer-agent] heuristic fallback (no OPENROUTER_API_KEY or no trip options)");
+  const packageCount = input.packageOptions?.length ?? 0;
+
+  if (!process.env.OPENROUTER_API_KEY || (input.tripOptions.length === 0 && packageCount === 0)) {
+    console.log("[optimizer-agent] heuristic fallback (no OPENROUTER_API_KEY or no options to rank)");
     return heuristicReview(payload);
   }
 
@@ -213,7 +297,7 @@ export async function reviewTripOptionsWithAgent(input: ReviewInput): Promise<Op
     const parsed = text ? JSON.parse(text) : {};
 
     console.log(
-      `[optimizer-agent] ${model} ranked ${input.tripOptions.length} trips, recommended ${parsed.recommendedTripId ?? "none"}: "${parsed.headline ?? "no headline"}"`,
+      `[optimizer-agent] ${model} ranked ${input.tripOptions.length} trips + ${packageCount} packages, recommended ${parsed.recommendedTripId ?? "none"}: "${parsed.headline ?? "no headline"}"`,
     );
 
     return {

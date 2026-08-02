@@ -118,6 +118,7 @@ export const apifyDachPackagesProvider: TravelProvider<PackageOffer> = {
           cancellationPolicy: undefined,
           savingPercent: record.price?.savingPercent ?? undefined,
           imageUrl: record.hotel?.images?.[0],
+          imageUrls: record.hotel?.images,
           raw: record,
         };
       });

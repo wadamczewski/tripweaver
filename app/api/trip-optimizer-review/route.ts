@@ -3,6 +3,7 @@ import { reviewTripOptionsWithAgent } from "../../../lib/optimizer/agent-review"
 import type {
   AccommodationOffer,
   OptimizerWeights,
+  PackageOffer,
   TransportOffer,
   TripOption,
   TripSearchCriteria,
@@ -13,6 +14,7 @@ type OptimizerReviewRequest = {
   transportOptions: TransportOffer[];
   accommodationOptions: AccommodationOffer[];
   tripOptions: TripOption[];
+  packageOptions?: PackageOffer[];
   weights: OptimizerWeights;
   changeReason?: string;
 };
@@ -24,6 +26,7 @@ export async function POST(request: Request) {
     transportOptions: body.transportOptions,
     accommodationOptions: body.accommodationOptions,
     tripOptions: body.tripOptions,
+    packageOptions: body.packageOptions,
     weights: body.weights,
     changeReason: body.changeReason ?? "Trip Optimizer settings changed",
   });

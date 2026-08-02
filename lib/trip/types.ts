@@ -109,6 +109,7 @@ export type PackageOffer = {
   cancellationPolicy?: string;
   savingPercent?: number;
   imageUrl?: string;
+  imageUrls?: string[];
   bookingUrl?: string;
   raw?: unknown;
 };
@@ -146,5 +147,25 @@ export type TripSearchResults = {
   packageOptions: PackageOffer[];
   tripOptions: TripOption[];
   providerStatuses: ProviderStatus[];
-  optimizerReview: OptimizerAgentReview;
+  // Undefined until the Trip Optimizer agent call (run separately from the
+  // core search — see lib/search.ts) resolves.
+  optimizerReview?: OptimizerAgentReview;
+};
+
+// The fast half of a search: real transport + accommodation results and
+// their cross-product, without waiting on packages or the agent review —
+// see searchTripCore in lib/search.ts.
+export type TripSearchCoreResults = {
+  transportOptions: TransportOffer[];
+  accommodationOptions: AccommodationOffer[];
+  tripOptions: TripOption[];
+  providerStatuses: ProviderStatus[];
+};
+
+// Package holidays are billed per search and can take 30-140+ seconds
+// (real German tour-operator sites) — fetched independently of the core
+// search so they never block the results page. See searchPackageHolidays.
+export type PackageSearchResults = {
+  packageOptions: PackageOffer[];
+  providerStatuses: ProviderStatus[];
 };

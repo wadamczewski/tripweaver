@@ -185,6 +185,7 @@ export type PackageHoliday = {
   savingBadge?: string;
   cancellationPolicy: string;
   imageUrl: string;
+  imageUrls?: string[];
 };
 
 export type PriceBreakdown = {

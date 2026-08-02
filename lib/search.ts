@@ -1,16 +1,15 @@
 import { accommodationProviders, packageProviders, transportProviders } from "./providers";
 import { ProviderConfigError } from "./providers/http";
 import { convertMoney } from "./providers/fx";
-import { reviewTripOptionsWithAgent, defaultWeights } from "./optimizer/agent-review";
 import type {
   AccommodationOffer,
-  OptimizerWeights,
+  PackageSearchResults,
   ProviderStatus,
   TransportOffer,
   TravelProvider,
   TripOption,
+  TripSearchCoreResults,
   TripSearchCriteria,
-  TripSearchResults,
 } from "./trip/types";
 
 const DEMO_TRANSPORT_PROVIDER_ID = "tripweaver-demo-flights";
@@ -52,6 +51,13 @@ function filterByBudget(trips: TripOption[], criteria: TripSearchCriteria) {
     if (criteria.budgetMin !== undefined && trip.totalPrice.amount < criteria.budgetMin) return false;
     return true;
   });
+}
+
+async function timed<T>(label: string, promise: Promise<T>): Promise<T> {
+  const start = Date.now();
+  const result = await promise;
+  console.log(`[search-timing] ${label}: ${Date.now() - start}ms`);
+  return result;
 }
 
 async function searchProvider<TOffer>(provider: TravelProvider<TOffer>, criteria: TripSearchCriteria) {
@@ -106,20 +112,19 @@ function combineOptions(transports: TransportOffer[], accommodations: Accommodat
   ) satisfies TripOption[];
 }
 
-export async function searchTrip(
-  criteria: TripSearchCriteria,
-  weights?: OptimizerWeights,
-): Promise<TripSearchResults> {
-  // Package providers are billed per search (Apify's pay-per-event
-  // pricing) — unlike flights/hotels, only call them when the user
-  // actually wants packages, not on every search regardless of the
-  // toggle.
-  const wantsPackages = criteria.packageHolidays !== false;
+// The fast half of a search — transport, accommodation, and their
+// cross-product. Deliberately excludes packages (can take 30-140+ seconds,
+// see searchPackageHolidays below) and the Trip Optimizer agent review
+// (20-60+ seconds, see lib/optimizer/agent-review.ts) so the frontend can
+// show real results within a couple of seconds instead of blocking on
+// whichever of those is slowest. Both are fetched separately and merged
+// into the UI once they resolve.
+export async function searchTripCore(criteria: TripSearchCriteria): Promise<TripSearchCoreResults> {
+  const searchStart = Date.now();
 
-  const [transportSearches, accommodationSearches, packageSearches] = await Promise.all([
-    Promise.all(transportProviders.map((provider) => searchProvider(provider, criteria))),
-    Promise.all(accommodationProviders.map((provider) => searchProvider(provider, criteria))),
-    wantsPackages ? Promise.all(packageProviders.map((provider) => searchProvider(provider, criteria))) : [],
+  const [transportSearches, accommodationSearches] = await Promise.all([
+    timed("transport", Promise.all(transportProviders.map((provider) => searchProvider(provider, criteria)))),
+    timed("accommodation", Promise.all(accommodationProviders.map((provider) => searchProvider(provider, criteria)))),
   ]);
 
   const transportOptions = filterByTransportModes(
@@ -129,31 +134,41 @@ export async function searchTrip(
   const accommodationOptions = offersExcludingSuppressedDemo(accommodationSearches, DEMO_ACCOMMODATION_PROVIDER_ID).sort(
     (a, b) => a.totalPrice.amount - b.totalPrice.amount,
   );
-  const packageOptions = packageSearches
-    .flatMap((result) => result.offers)
-    .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
   const tripOptions = filterByBudget(
     combineOptions(transportOptions, accommodationOptions, criteria),
     criteria,
   ).sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
 
-  const optimizerReview = await reviewTripOptionsWithAgent({
-    criteria,
-    transportOptions,
-    accommodationOptions,
-    tripOptions,
-    weights: weights ?? defaultWeights,
-    changeReason: "Initial search",
-  });
+  console.log(`[search-timing] core total: ${Date.now() - searchStart}ms (${tripOptions.length} trip combos)`);
 
   return {
     transportOptions,
     accommodationOptions,
-    packageOptions,
     tripOptions,
-    providerStatuses: [...transportSearches, ...accommodationSearches, ...packageSearches].map(
-      (result) => result.status,
-    ),
-    optimizerReview,
+    providerStatuses: [...transportSearches, ...accommodationSearches].map((result) => result.status),
+  };
+}
+
+// Package providers are billed per search (Apify's pay-per-event pricing)
+// and query several real German tour-operator sites — unlike flights/hotels,
+// only call them when the user actually wants packages, not on every
+// search regardless of the toggle.
+export async function searchPackageHolidays(criteria: TripSearchCriteria): Promise<PackageSearchResults> {
+  if (criteria.packageHolidays === false) {
+    return { packageOptions: [], providerStatuses: [] };
+  }
+
+  const packageSearches = await timed(
+    "packages",
+    Promise.all(packageProviders.map((provider) => searchProvider(provider, criteria))),
+  );
+
+  const packageOptions = packageSearches
+    .flatMap((result) => result.offers)
+    .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
+
+  return {
+    packageOptions,
+    providerStatuses: packageSearches.map((result) => result.status),
   };
 }

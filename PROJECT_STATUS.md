@@ -37,15 +37,23 @@ There are **two parallel data models** and an adapter between them:
   `lib/providers/travelerMapping.ts`, and labeled "Demo estimate" in the UI
   where relevant.
 
-Flow: `app/page.tsx` (client) → POST `/api/trip-search` → `lib/search.ts`
-(`searchTrip`, server-only, calls every provider in parallel, then calls the
-optimizer agent) → provider adapters in `lib/providers/*` → response adapted
-back to rich shape → rendered by `components/results/*` and
-`components/optimizer/*`.
+Flow (as of 2026-08-02, see the "Progressive search" note below for why):
+`app/page.tsx` (client) → POST `/api/trip-search` → `lib/search.ts`
+(`searchTripCore`, server-only, calls transport + accommodation providers in
+parallel — fast, no packages, no agent review) → provider adapters in
+`lib/providers/*` → response adapted back to rich shape → rendered
+immediately by `components/results/*`. Two more requests fire in the
+background right after that, neither blocking the results page: POST
+`/api/trip-packages` (`searchPackageHolidays`) and POST
+`/api/trip-optimizer-review` (`reviewTripOptionsWithAgent`, fired
+automatically by `components/optimizer/OptimizerAgentReview.tsx` itself, not
+just on manual weight-tuning). Each merges into the displayed results as it
+resolves.
 
 **Do not** call any provider or the OpenRouter agent from a client component —
 API keys must stay server-side. This is already enforced by routing
-everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
+everything through `app/api/trip-search`, `app/api/trip-packages`, and
+`app/api/trip-optimizer-review`.
 
 ## Provider status (as of 2026-07-31)
 
@@ -59,8 +67,180 @@ everything through `app/api/trip-search` and `app/api/trip-optimizer-review`.
 | Hotels | **Hotelbeds / HBX Group API Suite** | **Real, wired, verified working end-to-end** (2026-07-31). `lib/providers/accommodations/hotelbeds.ts`, registered in `lib/providers/index.ts`. `HOTELBEDS_API_KEY` + `HOTELBEDS_SECRET` are set in `.env.local` (signature auth: SHA-256 of `apiKey+secret+unixTimestamp`, sent as `Api-key`/`X-Signature` headers) and `TRIPWEAVER_LOCATION_HINTS_JSON` has a `hotelbedsDestinationCode` for Barcelona (`"BCN"` — confirmed via a live call; Hotelbeds destination codes are their own codification, not IATA, so other cities need their own code looked up before they'll return results). Returns real hotels (name, star category, room type, price, and a real per-hotel photo via a bulk Content API call — see the "Real per-hotel photos" note below) alongside/suppressing the demo provider per the usual rule. |
 | Hotels | **Google Hotels (SerpApi)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/accommodations/serpapi-hotels.ts`, needs `SERPAPI_KEY`. Free tier: 250 searches/month, recurring. Not a licensed wholesaler feed — it's SerpApi's structured JSON of Google Hotels' own search results (comparison-only, no booking capability; `bookingUrl` points at the hotel's own site/listing, not an affiliate booking link). Takes a free-text destination (`q`) instead of a per-city code, so — unlike Hotelbeds — it isn't limited to destinations with a hint configured. Some premium chain hotels (seen live: Sofitel, Radisson Blu, Hilton) come back from Google with no rate at all for a given query; these are filtered out rather than shown with a fabricated PLN 0 price. |
 | Hotels | **TripWeaver Demo Stays** | Fallback, always runs, always succeeds. 5 synthetic hotels across star ratings. `lib/providers/accommodations/demoStays.ts`. |
-| Packages | **DACH Package Holidays (Apify)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/packages/apify-dach-packages.ts`, needs `APIFY_API_TOKEN`. Real bundled prices from TUI/DERTOUR/weg.de/ab-in-den-urlaub.de/alltours — but only for German-region departure airports (see the dated note below); Szczecin returns 0. Unofficial third-party scraper, not a licensed feed — see the ToS caveat in the dated note. No demo fallback still — if this provider fails/returns nothing, the tab is honestly empty rather than showing synthetic data. |
+| Packages | **DACH Package Holidays (Apify)** | **Real, wired, verified working end-to-end** (2026-08-01). `lib/providers/packages/apify-dach-packages.ts`, needs `APIFY_API_TOKEN`. Real bundled prices from TUI/DERTOUR/weg.de/ab-in-den-urlaub.de/alltours — but only for German-region departure airports (see the dated note below); Szczecin returns 0. Unofficial third-party scraper, not a licensed feed — see the ToS caveat in the dated note. No demo fallback still — if this provider fails/returns nothing, the tab is honestly empty rather than showing synthetic data. As of 2026-08-02, within-budget packages are also merged into "Complete trips" and ranked by the optimizer agent alongside self-organized combos, not just shown in their own tab — see the dated note below. |
 | Optimizer agent | **OpenRouter** | Real, wired, verified working end-to-end (`gpt-5-mini` via `OPENROUTER_API_KEY`, configurable via `OPENROUTER_MODEL`). Falls back to a local heuristic scorer if the key is missing or the call fails. As of 2026-08-01 its ranking is authoritative over the displayed trip order (previously computed but discarded — see the dated note below). `lib/optimizer/agent-review.ts`, UI in `components/optimizer/OptimizerAgentReview.tsx`. |
+
+**Progressive search — decoupled packages + agent review from the results
+page (2026-08-02).** Investigated a real complaint: a Szczecin→Barcelona
+search "takes ages" to reach the results page. Measured live (Docker
+container, server-side timing logs) rather than guessing:
+
+- Transport (Duffel) + accommodation (Hotelbeds/SerpApi) combined: ~1-4s.
+  Never the bottleneck.
+- **Trip Optimizer agent (`gpt-5-mini`) alone: 20-60s**, ranking the full
+  ~500-576 trip-combo payload — the dominant cost even with packages off.
+- **Package holidays (Apify DACH scraper): up to 65-140s**, and the old code
+  ran it in the same blocking `Promise.all` as the initial search, so its
+  full duration was added on top of everything else. Worse: for Szczecin
+  specifically (this app's default origin), packages **always return zero
+  results** — confirmed live, a full ~112s wait ended in "No match yet"
+  every time, since the Apify actor only covers German-region departure
+  airports (see the dated note further down). The default search was
+  paying up to two minutes for a category that could never return anything.
+
+**Fix**: split what was one blocking `searchTrip()` call into three
+independent pieces (`lib/search.ts`): `searchTripCore()` (transport +
+accommodation, ~1-4s), `searchPackageHolidays()`, and the pre-existing
+`reviewTripOptionsWithAgent()`. `app/page.tsx` now calls only the core search
+before flipping to the results view; packages (`POST /api/trip-packages`, new
+route) and the agent review (`POST /api/trip-optimizer-review`, already
+existed for manual weight-tuning — `OptimizerAgentReview.tsx` now also fires
+it itself on mount instead of waiting to be told) both run in the background
+and merge into `realResults` as they resolve, via ordinary React state
+updates — no polling, no websockets. The results page is now interactive in
+a few seconds instead of up to ~113s.
+
+UI treats "still loading" and "genuinely found nothing" as different states
+instead of one permanent "Pending": the Package holidays tab shows a spinner
++ explanatory copy while `isPackagesPending`, then either real listings or an
+honest "No operator returned a bundled offer" once the request actually
+finishes. The "Package holiday" recommendation tile (top of the Complete
+Trips tab) had a separate pre-existing bug worth noting — `getRecommendationTiles`
+sourced it from `options.find(o => o.kind === "package" || o.packageHoliday)`,
+but nothing in `tripOptions` (self-organized combos) ever had `kind:
+"package"`, so that tile always read "Pending" regardless of real package
+state. This is now fixed for real (not just papered over) by the package
+holidays merge described in the next dated note below, which makes
+`kind: "package"` entries genuinely exist in `tripOptions`.
+
+One React-specific bug caught during live verification: the agent-review
+auto-fetch effect fired twice per search (two real, billed OpenRouter calls,
+visible as two `POST /api/trip-optimizer-review` log lines ~20-26s apart) —
+`next.config.mjs` has `reactStrictMode: true`, which double-invokes effects
+in dev to catch missing-cleanup bugs, and a plain state-guarded `useEffect`
+isn't proof against that for a non-idempotent side effect. Fixed with a ref
+(`autoRequestedForRef`) set synchronously inside the effect body and keyed on
+the `tripOptions` array reference — refs survive Strict Mode's simulated
+remount on the same fiber, so the guard holds across the double-invoke.
+Verified live: exactly one `POST /api/trip-optimizer-review` per search
+afterward.
+
+**Package holidays merged into "Complete trips" + a real currency bug fix
+(2026-08-02).** Follow-up from a live bug report: a user searching with a
+12,000 PLN budget could see real ~2,000 EUR packages in the Packages tab,
+but (a) the price wasn't converted to PLN for comparison, and (b) packages
+never appeared in "Complete trips" at all, so the AI agent never considered
+them against self-organized flight+hotel combos.
+
+- **Currency bug, root cause**: `toRichMoney()` (`lib/adapters/results.ts`)
+  looked like a conversion function but wasn't one — it just tagged an
+  offer's amount with whatever currency the offer already had (or the
+  fallback), never actually calling a conversion. A EUR-priced package
+  displayed as "PLN 2000" instead of ~8,500 PLN. This affected every
+  provider's price, not just packages, but only became visible with
+  Apify's EUR-priced packages since Duffel/Hotelbeds/SerpApi already
+  return PLN for a PLN search. Fixed by actually calling `convertMoney`
+  (`lib/currency.ts`, already existed and was already used correctly
+  elsewhere — just never wired into this one function).
+- **Packages merged into `tripOptions`**: `lib/types.ts`'s `TripOption`
+  already had `kind: "self-organized" | "package"` and an optional
+  `packageHoliday` field, and several helpers (`getPrimaryTransportLabel`,
+  `getProviderLabel`, `getLuggageLabel`, `buildRecommendationBadges`) were
+  already package-aware — all dead code until now, clearly scaffolded for
+  exactly this. `toSearchResults` now builds a `TripOption` per package
+  holiday (`toPackageTripOption`), using a synthesized `AccommodationOption`
+  proxy (`packageAsAccommodation`, exported) since a package's hotel fields
+  map onto that shape directly. Merged alongside self-organized combos,
+  scored by the same `scoreTripOptions`, ranked by the same agent. Real
+  flight duration isn't in the package data, so `totalDurationMinutes`
+  defaults to 240 — the same "unknown duration" convention already used
+  for transport offers missing real timing, not a new fabrication.
+  Budget-filtered the same way self-organized combos already are
+  server-side (`isWithinBudget`, checked against the *converted* price) —
+  but only for this merged comparison; the dedicated Packages tab still
+  shows every real result found regardless of budget, unchanged.
+- **Agent awareness**: `reviewTripOptionsWithAgent` (`lib/optimizer/agent-review.ts`)
+  now also accepts `packageOptions` and includes them in the same prompt as
+  a second category, asking the model to rank both into one combined list
+  rather than treating packages as a separate concern — the system prompt
+  explicitly says package duration is unknown (treat as average) and that
+  an included airport transfer should count toward familyFit. Package
+  prices are converted (`lib/providers/fx.ts`'s `convertMoney`) before
+  either the prompt or the no-API-key heuristic fallback scores them, for
+  the same reason as the rich-UI fix above. Verified live: the agent
+  correctly ranked "0 trips + 60 packages" for a Berlin search and picked a
+  specific package by its real ID, with its total price shown in PLN.
+  Because packages (up to ~2 minutes) usually resolve well after the first
+  agent review already ran (~20-60s) — see the progressive-search note
+  above — `OptimizerAgentReview.tsx` now also auto-fires a **second**
+  review the first time non-empty packages arrive after an initial review
+  already completed, so packages that resolve late still get a fair shot at
+  being the recommendation instead of being silently excluded by timing.
+  Guarded with the same ref-based pattern as the Strict Mode fix above to
+  avoid a redundant call when packages happen to already be ready before
+  the first review even fires.
+- **Package holidays get the same gallery/modal as hotels**: rather than
+  building a second modal component, `PackageHolidayList.tsx` now wraps
+  each package's hero photo in the existing `HotelDetailsModal`, passing
+  the same `packageAsAccommodation` proxy used for the merge above — full
+  photo gallery (the Apify actor's `hotel.images` array was already being
+  fetched but only `images[0]` was kept; now exposed as `imageUrls` too),
+  real room/board/cancellation details, same "location not provided"
+  placeholder as any hotel without coordinates (Apify doesn't return
+  package hotel coordinates). Verified live: a package's photo badge
+  correctly read "+9" and opened a 10-photo gallery identical in behavior
+  to a real Hotelbeds listing.
+
+**Fixed the agent's ranking looking price-only regardless of the weights
+(2026-08-02).** User feedback: "I get an impression that you always order
+the list based on price and it's not the only criteria, we have weights for
+that ordering." Two real, compounding causes, not one:
+
+1. **`toRealWeights()` (`lib/adapters/criteria.ts`) had a broken mapping.**
+   The rich UI's 5 sliders (price/travelTime/convenience/hotelQuality/
+   sustainability) and the real agent's 5 axes (price/speed/comfort/
+   luggage/familyFit) only have 3 clean 1:1 matches — the old code mapped
+   the other two UI sliders onto the other two agent axes anyway just to
+   fill them in: `sustainability -> luggage`. A user boosting "lowest
+   carbon footprint" made the agent think they cared about checked-luggage
+   inclusion instead — a meaningless signal, which meant `luggage` carried
+   no real information and `price` ended up mattering more than the UI
+   implied. Fixed: `convenience -> familyFit` (defensible — fewer transfers
+   is genuinely part of "lower friction for children"), `luggage` is now
+   driven by the actual "Checked luggage" toggle (`criteria.checkedLuggage`,
+   a real signal for what that axis means) instead of an unrelated slider,
+   and `sustainability` is left unmapped rather than forced onto something
+   arbitrary — it still drives the local client-side score
+   (`lib/scoring.ts`), just has no real counterpart on the agent's side.
+2. **The agent had no concrete number to anchor to.** Even with weights
+   fixed, asking an LLM to rank 500+ items against five qualitative
+   descriptions in one pass leaves a lot of room for it to fall back on
+   whatever's easiest to compare at a glance — price. Fixed by computing
+   the same weighted score already used for the no-API-key heuristic
+   fallback (`fallbackScore`/`fallbackScorePackage` in
+   `lib/optimizer/agent-review.ts`) for every option and including it in
+   the prompt as `localScore` (0-1, all five weighted axes already
+   combined), with the system prompt now explicitly instructing the model
+   to sort by it first and only reorder for things it can't see (a real
+   warning, a policy detail) — not silently revert to price. Both call
+   sites (the real prompt and the heuristic fallback) now share one
+   `computeRankingContext()` helper so they can't drift apart on
+   cheapest/fastest baselines or package currency conversion.
+
+Verified live, same search, weights changed mid-session: with default
+balanced weights the agent picked "Domo" (a mid-price, mid-rated hotel).
+After setting price to 0% and hotel quality to 75% and re-reviewing, it
+picked a *different, more expensive* trip — "Air Penedes (4★), costs 73 PLN
+more than the cheapest option" — with the agent's own headline reading
+"Comfort-first pick". Confirms the ranking genuinely responds to weights
+now rather than defaulting to cheapest regardless of what's dialed up.
+
+Also reconfirmed while investigating this: the two-phase agent trigger
+(fire the first review as soon as flights+hotels are ready, without waiting
+on packages; fire a second review only once packages have arrived *and*
+the first run has already completed) was raised as a requirement again but
+was already correct from the 2026-08-02 progressive-search work above — no
+change needed there, just re-verified live.
 
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
@@ -480,7 +660,12 @@ interface. Treat them as reference/history, not working code.
 
 **Results**: complete trips / transport / accommodation / package tabs
 (`components/results/*`), trip cards with expandable timeline + cost breakdown,
-compare-up-to-3, save-to-localStorage (`lib/storage.ts`).
+compare-up-to-3, save-to-localStorage (`lib/storage.ts`). "Complete trips"
+isn't self-organized-combos-only — within-budget package holidays are
+merged in too (`kind: "package"` trip options, see the 2026-08-02 dated
+note), so a package can win "AI recommended"/"Cheapest"/"Fastest" the same
+as a flight+hotel combo. The Packages tab itself still lists every real
+result found regardless of budget.
 
 **Optimizer**: `OptimizerPanel` (weight sliders, comparison-scenario cards,
 score explanation) lives as a sticky **left sidebar** (`lg:grid-cols-[400px_minmax(0,1fr)]`

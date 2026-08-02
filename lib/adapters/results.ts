@@ -1,4 +1,4 @@
-import { addMoney, money, moneyFromPln } from "../currency";
+import { addMoney, convertMoney, money, moneyFromPln } from "../currency";
 import { getRoomSummary } from "../../components/results/helpers";
 import {
   categoryForTraveler,
@@ -33,9 +33,14 @@ import type {
   TripSearchResults
 } from "../trip/types";
 
-function toRichMoney(value: RealMoney, fallbackCurrency: SearchCriteria["currency"]): Money {
-  const currency = value.currency === "PLN" || value.currency === "EUR" ? value.currency : fallbackCurrency;
-  return money(value.amount, currency);
+// Real providers price offers in whatever currency they operate in (e.g.
+// the Apify DACH package actor returns EUR regardless of the search
+// currency) — this must actually convert, not just tag the amount with
+// whatever currency happens to be valid, or a EUR price silently gets
+// displayed/compared as if it were the same number of PLN.
+function toRichMoney(value: RealMoney, targetCurrency: SearchCriteria["currency"]): Money {
+  const sourceCurrency = value.currency === "PLN" || value.currency === "EUR" ? value.currency : targetCurrency;
+  return convertMoney(money(value.amount, sourceCurrency), targetCurrency);
 }
 
 const CARBON_KG_PER_HOUR: Record<TransportMode, number> = {
@@ -246,7 +251,37 @@ function toPackageHoliday(offer: PackageOffer, criteria: SearchCriteria, fallbac
     ageNotes: [],
     savingBadge: offer.savingPercent ? `Save ${Math.round(offer.savingPercent)}%` : undefined,
     cancellationPolicy: offer.cancellationPolicy ?? "Confirm cancellation terms with the provider before booking.",
-    imageUrl: offer.imageUrl ?? fallbackImageUrl
+    imageUrl: offer.imageUrl ?? fallbackImageUrl,
+    imageUrls: offer.imageUrls && offer.imageUrls.length > 0 ? offer.imageUrls : undefined
+  };
+}
+
+// Lets a package holiday reuse the same gallery/details modal as a real
+// hotel (HotelDetailsModal) instead of a separate, duplicated component —
+// a package's hotel fields map onto AccommodationOption cleanly since it's
+// a real hotel stay, just bundled with transport under one price.
+export function packageAsAccommodation(pkg: PackageHoliday): AccommodationOption {
+  return {
+    id: pkg.id,
+    provider: pkg.tourOperator,
+    name: pkg.hotelName,
+    location: pkg.destination,
+    rating: pkg.hotelRating,
+    reviewCount: 0,
+    nights: pkg.durationNights,
+    roomType: pkg.roomType,
+    roomAllocation: pkg.roomAllocation,
+    boardType: pkg.boardType,
+    totalPrice: pkg.totalPrice,
+    taxesIncluded: true,
+    cancellationPolicy: pkg.cancellationPolicy,
+    bookingUrl: pkg.bookingUrl,
+    available: true,
+    imageUrl: pkg.imageUrl,
+    imageUrls: pkg.imageUrls && pkg.imageUrls.length > 0 ? pkg.imageUrls : [pkg.imageUrl]
+    // No latitude/longitude — the Apify package source doesn't provide
+    // hotel coordinates, so the modal falls back to its existing "location
+    // not provided" placeholder instead of a fabricated map.
   };
 }
 
@@ -275,6 +310,88 @@ function buildTimeline(transport: TransportOption, accommodation: AccommodationO
       detail: accommodation.name
     }
   ];
+}
+
+const PACKAGE_ESTIMATED_DURATION_MINUTES = 240;
+
+function buildPackageTimeline(pkg: PackageHoliday, criteria: SearchCriteria): TimelineItem[] {
+  return [
+    {
+      time: criteria.departureDate,
+      title: "Depart",
+      detail: `${pkg.departureAirport} · ${pkg.tourOperator}`,
+      mode: "flight"
+    },
+    {
+      time: criteria.departureDate,
+      title: "Hotel check-in",
+      detail: pkg.hotelName
+    },
+    {
+      time: criteria.returnDate,
+      title: "Hotel check-out",
+      detail: pkg.hotelName
+    }
+  ];
+}
+
+// A package holiday is a genuine trip option — a bundled tour-operator
+// price standing in for a self-organized flight+hotel combo — represented
+// as a TripOption so it can sit in "Complete trips" alongside
+// self-organized options, get scored/ranked by the same optimizer, and be
+// reviewed by the same agent.
+function toPackageTripOption(pkg: PackageHoliday, criteria: SearchCriteria): TripOption {
+  const accommodation = packageAsAccommodation(pkg);
+  const zero = money(0, criteria.currency);
+
+  const breakdown: PriceBreakdown = {
+    travelerPrices: pkg.travelerPrices,
+    transport: zero,
+    accommodation: pkg.totalPrice,
+    luggage: zero,
+    transfers: zero,
+    localTransport: zero,
+    food: zero,
+    insurance: zero,
+    fees: zero,
+    total: pkg.totalPrice
+  };
+
+  return {
+    id: pkg.id,
+    label: `${pkg.tourOperator} package — ${pkg.hotelName}`,
+    kind: "package",
+    transportSegments: [],
+    accommodation,
+    packageHoliday: pkg,
+    travelerGroup: criteria.travelers,
+    roomAllocation: pkg.roomAllocation,
+    priceBreakdown: breakdown,
+    totalPrice: pkg.totalPrice,
+    pricePerPerson: money(pkg.totalPrice.amount / Math.max(1, criteria.travelers.totalTravelers), criteria.currency),
+    // The package actor doesn't return real flight duration — reuse the
+    // same "unknown duration" default already applied to transport offers
+    // missing real timing (see toTransportOption above), not a fabricated
+    // precise value.
+    totalDurationMinutes: PACKAGE_ESTIMATED_DURATION_MINUTES,
+    transfers: pkg.airportTransferIncluded ? 0 : 1,
+    carbonKg: estimateCarbonKg("flight", PACKAGE_ESTIMATED_DURATION_MINUTES),
+    score: 0,
+    scoreExplanation: "",
+    recommendationReasons: [],
+    timeline: buildPackageTimeline(pkg, criteria),
+    costAssumptions: [
+      "This is a single bundled tour-operator price, not broken into separate transport/accommodation line items.",
+      ...ESTIMATE_NOTES
+    ],
+    savingOpportunities: []
+  };
+}
+
+function isWithinBudget(amount: number, criteria: SearchCriteria): boolean {
+  if (criteria.budget && amount > convertMoney(criteria.budget, criteria.currency).amount) return false;
+  if (criteria.budgetMin && amount < convertMoney(criteria.budgetMin, criteria.currency).amount) return false;
+  return true;
 }
 
 function buildRecommendationReasons(
@@ -334,6 +451,13 @@ export function toSearchResults(
     toAccommodationOption(offer, criteria, destinationImageUrl)
   );
   const packageHolidays = real.packageOptions.map((offer) => toPackageHoliday(offer, criteria, destinationImageUrl));
+  // The dedicated Packages tab shows every real package found regardless of
+  // budget (informational); only the merged "Complete trips" comparison
+  // below respects it, same as self-organized combos already do
+  // server-side (see filterByBudget in lib/search.ts).
+  const packageTripOptions = packageHolidays
+    .filter((pkg) => isWithinBudget(pkg.totalPrice.amount, criteria))
+    .map((pkg) => toPackageTripOption(pkg, criteria));
 
   const transportById = new Map(transportOptions.map((option) => [option.id, option]));
   const accommodationById = new Map(accommodationOptions.map((option) => [option.id, option]));
@@ -404,13 +528,21 @@ export function toSearchResults(
     })
     .filter((trip): trip is TripOption => trip !== null);
 
-  if (tripOptions.length > 0) {
-    const cheapest = [...tripOptions].sort((a, b) => a.totalPrice.amount - b.totalPrice.amount)[0];
-    const fastest = [...tripOptions].sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes)[0];
+  // Package-derived options are merged in here — after this point,
+  // "trip options" means both self-organized combos and package holidays,
+  // scored/ranked together by the same optimizer.
+  const allTripOptions = [...tripOptions, ...packageTripOptions];
 
-    for (const trip of tripOptions) {
+  if (allTripOptions.length > 0) {
+    const cheapest = [...allTripOptions].sort((a, b) => a.totalPrice.amount - b.totalPrice.amount)[0];
+    const fastest = [...allTripOptions].sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes)[0];
+
+    for (const trip of allTripOptions) {
       trip.recommendationReasons = buildRecommendationReasons(trip, cheapest, fastest);
-      trip.savingOpportunities = buildSavingOpportunities(trip);
+      // A package is a fixed bundle — there's no real "add luggage for
+      // X" style saving to compute the way there is for a self-organized
+      // combo, so don't fabricate one.
+      trip.savingOpportunities = trip.kind === "package" ? [] : buildSavingOpportunities(trip);
     }
   }
 
@@ -420,7 +552,7 @@ export function toSearchResults(
     transportOptions,
     accommodationOptions,
     packageHolidays,
-    tripOptions: scoreTripOptions(tripOptions, {
+    tripOptions: scoreTripOptions(allTripOptions, {
       price: 38,
       travelTime: 22,
       convenience: 18,

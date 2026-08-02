@@ -17,9 +17,11 @@ Wire them into the restored app by replacing the mocked arrays in `lib/search.ts
 import { transportProviders, accommodationProviders, packageProviders } from "./providers";
 ```
 
-Use `/api/trip-search` for the main search. It calls the providers server-side and then asks the Trip Optimizer agent to review the combined results through OpenRouter.
+Use `/api/trip-search` for the main search — it calls only the transport and accommodation providers server-side (fast, no packages, no agent review), so the results page can render immediately. Packages and the agent review are fetched separately and merge in as they resolve (see "Progressive search" in the main README).
 
-Use `/api/trip-optimizer-review` when Trip Optimizer settings change. The included `OptimizerAgentReview` component only shows its refresh button after the user has changed optimizer settings, so multiple slider/toggle changes can be made before the agent is re-run.
+Use `/api/trip-packages` for package holidays — billed per search (Apify), can take up to ~2 minutes, called once right after `/api/trip-search` returns.
+
+Use `/api/trip-optimizer-review` for the Trip Optimizer agent. `OptimizerAgentReview` fires it automatically on mount when there's no review yet (right after a search), and again whenever the user changes optimizer settings and clicks the refresh button that appears once `hasChanges` is true.
 
 ## OpenRouter
 

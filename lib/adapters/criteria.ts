@@ -79,17 +79,33 @@ export function weightsFromPreferences(preferences: PreferenceKey[]): OptimizerW
 
 // The rich UI's optimizer weights (price/travelTime/convenience/hotelQuality/sustainability,
 // 0-100 ints set by sliders) don't line up one-to-one with the real backend agent's weights
-// (price/speed/comfort/luggage/familyFit, 0-1 floats). This is a best-effort normalized mapping
-// so the live agent review reflects roughly the same priorities the user set in the UI.
-export function toRealWeights(weights: OptimizerWeights): RealOptimizerWeights {
-  const total =
-    weights.price + weights.travelTime + weights.convenience + weights.hotelQuality + weights.sustainability || 1;
+// (price/speed/comfort/luggage/familyFit, 0-1 floats) — 3 pairs have a clean semantic match
+// (price, travelTime->speed, hotelQuality->comfort), but the other two axes on each side don't:
+// the UI has convenience (fewest transfers) and sustainability (carbon), the agent has luggage
+// and familyFit, and none of those four line up with each other at all.
+//
+// This previously mapped sustainability -> luggage, which had zero logical connection (a user
+// boosting "lowest carbon footprint" would make the agent think they cared about checked-luggage
+// inclusion instead) — a real bug, not just an approximation, and part of why the agent's
+// ranking looked like it was ignoring the weights and just sorting by price: with luggage fed a
+// meaningless signal, price ended up carrying more real weight than intended. Fixed:
+// - convenience -> familyFit: defensible, not just a leftover pairing — fewer transfers is
+//   genuinely part of "lower friction for children", which is what familyFit means here.
+// - luggage is driven by the actual "Checked luggage" toggle instead of by any slider, since
+//   that's what the toggle is actually asking for.
+// - sustainability has no real counterpart on the agent's side and is intentionally left out
+//   of this mapping rather than forced onto an unrelated axis — it still drives the local
+//   client-side score (lib/scoring.ts), just not the agent's ranking.
+export function toRealWeights(weights: OptimizerWeights, checkedLuggage: boolean): RealOptimizerWeights {
+  const mappedTotal = weights.price + weights.travelTime + weights.hotelQuality + weights.convenience || 1;
+  const luggage = checkedLuggage ? 0.2 : 0.05;
+  const remaining = 1 - luggage;
 
   return {
-    price: weights.price / total,
-    speed: weights.travelTime / total,
-    comfort: weights.hotelQuality / total,
-    familyFit: weights.convenience / total,
-    luggage: weights.sustainability / total
+    price: (weights.price / mappedTotal) * remaining,
+    speed: (weights.travelTime / mappedTotal) * remaining,
+    comfort: (weights.hotelQuality / mappedTotal) * remaining,
+    familyFit: (weights.convenience / mappedTotal) * remaining,
+    luggage
   };
 }
