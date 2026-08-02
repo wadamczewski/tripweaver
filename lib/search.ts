@@ -86,19 +86,46 @@ async function searchProvider<TOffer>(provider: TravelProvider<TOffer>, criteria
 
 // Trip combos are a cross-product (transports × accommodations), so unlike
 // the raw provider lists this genuinely can't stay uncapped — with real
-// volumes (seen live: 62 Duffel flights × ~200 hotels across providers)
-// an uncapped cross-product would be 10,000+ combos, well past what's
-// sane to hand the optimizer agent in one prompt. 24 of each side (576
-// combos max) is a ~9x increase over the old 8×8=64 cap while keeping the
-// agent's prompt comfortably inside a small model's context window.
+// volumes (seen live: 62-1688 Duffel flights × ~185-200 hotels across
+// providers) an uncapped cross-product would be 10,000+ combos, well past
+// what's sane to hand the optimizer agent in one prompt. 24 of each side
+// (576 combos max) is a ~9x increase over the old 8×8=64 cap while keeping
+// the agent's prompt comfortably inside a small model's context window.
 const MAX_TRANSPORT_COMBOS = 24;
 const MAX_ACCOMMODATION_COMBOS = 24;
+
+// Evenly spreads `count` picks across a price-sorted list instead of
+// always taking the cheapest N. A pure cheapest-N slice biases the whole
+// cross-product toward the low end of the price range — verified live: a
+// real Barcelona search returned 1688 flights (cheapest ~180 PLN) and 185
+// hotels (cheapest ~530 PLN); the old cheapest-24-of-each slice topped out
+// at 1420 PLN combined, so a search with even a modest budgetMin (e.g.
+// 4000 PLN) rejected every one of the 576 combos as "too cheap" — not
+// because no real combo in range existed (the full 1688×185 dataset
+// almost certainly has some), but because none of the candidates the
+// cross-product ever considered were priced anywhere near what was asked
+// for. Stratified sampling instead spans from the cheapest real option up
+// toward the most expensive one on each side, so the resulting combos
+// cover a realistic spread of the whole price range, not just its floor.
+function stratifiedSample<T>(items: T[], count: number): T[] {
+  if (items.length <= count) return items;
+  if (count <= 1) return items.slice(0, count);
+
+  const lastIndex = items.length - 1;
+  const picks: T[] = [];
+
+  for (let i = 0; i < count; i++) {
+    picks.push(items[Math.round((i * lastIndex) / (count - 1))]);
+  }
+
+  return picks;
+}
 
 function combineOptions(transports: TransportOffer[], accommodations: AccommodationOffer[], criteria: TripSearchCriteria) {
   const currency = criteria.currency;
 
-  return transports.slice(0, MAX_TRANSPORT_COMBOS).flatMap((transport) =>
-    accommodations.slice(0, MAX_ACCOMMODATION_COMBOS).map((accommodation) => ({
+  return stratifiedSample(transports, MAX_TRANSPORT_COMBOS).flatMap((transport) =>
+    stratifiedSample(accommodations, MAX_ACCOMMODATION_COMBOS).map((accommodation) => ({
       id: `${transport.id}__${accommodation.id}`,
       transport,
       accommodation,

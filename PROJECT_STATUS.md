@@ -242,6 +242,30 @@ the first run has already completed) was raised as a requirement again but
 was already correct from the 2026-08-02 progressive-search work above — no
 change needed there, just re-verified live.
 
+**Fixed `combineOptions` always producing zero trips for a budget the real
+data could clearly satisfy (2026-08-02).** User caught this live: a Berlin
+search returned 1688 real flights and 185 real hotels, but "Complete
+trips" showed 0 — reproduced from an earlier "you should never see the
+blocking no-results page" fix, but that fix only addressed the *page*, not
+the actual cause. Root cause: `combineOptions` (`lib/search.ts`) built its
+576-combo cross-product from `transports.slice(0, 24)` and
+`accommodations.slice(0, 24)` — and since both arrays are pre-sorted
+cheapest-first, that's always the cheapest 24 of each, never a wider
+sample. Measured live: the cheapest 24 flights topped out at 427 PLN, the
+cheapest 24 hotels at 993 PLN — so the priciest combo the cross-product
+could ever produce was 1420 PLN, well under a 4000 PLN `budgetMin`. Every
+one of the 576 combos got rejected as "too cheap", even though the full
+1688×185 dataset obviously contains real combos in the 4000-12000 PLN
+range — the cross-product just never considered them.
+
+Fixed with `stratifiedSample()`: instead of the first N items, evenly
+spreads N picks across the full (still price-sorted) list, so the sampled
+transports and accommodations span from the cheapest real option up
+toward the most expensive one, not just the floor of the price range.
+Verified live, same Berlin search, no other changes: 428 real trip combos
+now, with a real cheapest (PLN 7,104) and fastest (2h 45m) both inside the
+requested budget.
+
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
 1. Token permissions — the original token lacked `air.offer_requests.create`;
