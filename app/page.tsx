@@ -26,6 +26,7 @@ import {
   upsertSavedTrip
 } from "@/lib/storage";
 import { useDestinationImages } from "@/lib/useDestinationImages";
+import { useNearestCity } from "@/lib/useNearestCity";
 import type { OptimizerWeights, SearchCriteria, TripOption } from "@/lib/types";
 import type {
   OptimizerAgentReview as OptimizerAgentReviewResult,
@@ -60,6 +61,22 @@ export default function Home() {
   useEffect(() => {
     setSavedTrips(loadSavedTrips());
   }, []);
+
+  // Defaults the "Departure city" field to wherever the user actually is,
+  // via the browser's own geolocation permission prompt, instead of always
+  // starting from the same fixed city regardless of who's searching. Only
+  // applies while the field still has its untouched default value — if the
+  // user has already typed a different origin (including by the time this
+  // resolves, since geolocation can take a few seconds), their edit wins
+  // and this is a no-op.
+  const nearestCity = useNearestCity();
+
+  useEffect(() => {
+    if (!nearestCity) return;
+    setCriteria((current) =>
+      current.origin === DEFAULT_SEARCH.origin ? { ...current, origin: nearestCity } : current
+    );
+  }, [nearestCity]);
 
   // Transport/accommodation land fast (a couple of seconds); packages and
   // the optimizer review are fetched separately and merged in as they
@@ -326,6 +343,7 @@ export default function Home() {
                     tripOptions={realResults.tripOptions}
                     packageOptions={realResults.packageOptions}
                     weights={toRealWeights(weights, submittedCriteria.checkedLuggage)}
+                    recommendedTrip={featuredTrip}
                     initialReview={realResults.optimizerReview}
                     onReview={handleAgentReview}
                     onReviewingChange={setIsAgentReviewing}

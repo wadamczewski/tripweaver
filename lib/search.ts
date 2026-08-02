@@ -23,6 +23,24 @@ function filterByTransportModes(offers: TransportOffer[], modes: TripSearchCrite
   return offers.filter((offer) => modes.includes(offer.mode));
 }
 
+// accommodationStars is a minimum ("4-star" means "4-star or better"), not
+// an exact match — enforced here as a guarantee regardless of whether a
+// given provider's own category filter actually worked. Real bug found
+// live: Hotelbeds never read accommodationStars at all (no filter sent),
+// so a "5-star" search still returned every category; SerpApi's hotel_class
+// param was being sent as a single exact value instead of a minimum range.
+// Both are now fixed at the provider level too (see hotelbeds.ts and
+// serpapi-hotels.ts), but this stays as the actual guarantee, the same way
+// filterByTransportModes doesn't just trust Duffel to only return flights.
+// Offers with no parsed star rating are kept rather than dropped — an
+// unknown rating isn't evidence it fails the minimum, and hiding them would
+// lose real results just because a provider's category text didn't match
+// the parser.
+function filterByAccommodationStars(offers: AccommodationOffer[], minStars: TripSearchCriteria["accommodationStars"]) {
+  if (!minStars) return offers;
+  return offers.filter((offer) => offer.stars === undefined || offer.stars >= minStars);
+}
+
 // budget/budgetMin describe the whole trip, not one category — enforced
 // here against the combined transport+accommodation total, not pushed into
 // any single provider's own price filter (which would incorrectly cap, say,
@@ -142,9 +160,10 @@ export async function searchTripCore(criteria: TripSearchCriteria): Promise<Trip
     transportSearches.flatMap((result) => result.offers),
     criteria.transportModes,
   ).sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
-  const accommodationOptions = accommodationSearches
-    .flatMap((result) => result.offers)
-    .sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
+  const accommodationOptions = filterByAccommodationStars(
+    accommodationSearches.flatMap((result) => result.offers),
+    criteria.accommodationStars,
+  ).sort((a, b) => a.totalPrice.amount - b.totalPrice.amount);
   const tripOptions = filterByBudget(
     combineOptions(transportOptions, accommodationOptions, criteria),
     criteria,

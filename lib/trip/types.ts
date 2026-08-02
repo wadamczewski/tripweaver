@@ -133,7 +133,11 @@ export type OptimizerWeights = {
 export type OptimizerAgentReview = {
   recommendedTripId?: string;
   headline: string;
+  // Why this specific pick fits the weights — kept separate from
+  // tradeoffs so the UI can show "why recommended" and "what you give up"
+  // as distinct subsections instead of one blended paragraph.
   summary: string;
+  tradeoffs: string[];
   rankedTripIds: string[];
   warnings: string[];
   appliedWeights: OptimizerWeights;

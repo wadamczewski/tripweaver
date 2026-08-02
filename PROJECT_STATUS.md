@@ -313,6 +313,101 @@ with). The mock provider files from the original hackathon build
 were already unregistered/unused before this and are untouched — this only
 removed the two demo providers that were actually wired in and running.
 
+**Trip Optimizer agent panel redesign (2026-08-02).** User request: the
+expanded panel only ever showed prose (headline + one summary paragraph),
+with no view of what was actually being recommended, no split between "why
+this pick" and "what you give up", and no indication of loading state
+beyond a status pill. Three real changes, not just styling:
+
+1. **`OptimizerAgentReview` (the type, `lib/trip/types.ts`) gained a
+   `tradeoffs: string[]` field**, separate from `summary`. The agent's
+   system prompt (`lib/optimizer/agent-review.ts`) now explicitly asks for
+   two distinct pieces of reasoning — why the pick fits the weights vs.
+   what it gives up compared to other strong options — instead of one
+   blended paragraph the UI would have had to guess how to split. The
+   no-API-key heuristic fallback synthesizes real (not fabricated)
+   tradeoffs the same way `lib/adapters/results.ts` already does for trip
+   cards: comparing the winner's price/duration against the cheapest/
+   fastest option actually in the result set.
+2. **The panel now shows the actual recommended trip**, not just text:
+   image, total + per-person price, transport/hotel summary, score, and
+   real "Open at provider" links when the underlying offer actually has a
+   `bookingUrl` (Duffel and Hotelbeds don't set one currently, verified by
+   reading both adapters — the section honestly doesn't render rather than
+   showing a fake link). Wired via a new `recommendedTrip` prop:
+   `app/page.tsx` passes its already-computed `featuredTrip`, which
+   `applyAgentRanking` (`lib/scoring.ts`) guarantees is the agent's actual
+   pick whenever a review exists — no separate lookup needed.
+3. **The panel auto-expands the moment a review completes** (first pass or
+   a later re-review) instead of staying collapsed until the user notices,
+   and **blurs its existing content with a spinner overlay while
+   re-reviewing** instead of swapping to a bare loading state — so a
+   weight change or newly-arrived packages don't yank the previous
+   recommendation away before the new one is ready.
+
+Verified live: initial review auto-expanded showing a real Barcelona hotel
+photo, price, and a "Why this trip"/"Trade-offs" split with genuine
+per-factor reasoning ("wins on comfort... trade-off: not the absolute
+cheapest, a cheaper combo exists at ≈4,085 PLN with a lower localScore").
+Zeroing the price weight and maxing hotel quality, then re-reviewing,
+correctly blurred the stale card with "Re-ranking with the latest
+options…" and then swapped to a different, higher-comfort pick with
+updated reasoning.
+
+**Accommodation-standard filter actually fixed for real, plus a
+guaranteed safety net (2026-08-02).** User caught this live: selecting
+"5-star" still returned lower-rated hotels. Root cause was exactly what
+the 2026-08-01 search-criteria audit had already flagged as an open
+follow-up (see the updated note above) — Hotelbeds' quota had blocked
+verifying it at the time, so the filter was never actually wired in,
+just researched. Confirmed live: Hotelbeds' request body never included
+any category filter at all, so it returned every star rating regardless
+of the selection.
+
+Two real fixes, not one, plus a belt-and-suspenders guarantee:
+1. **Hotelbeds**: added `filter.minCategory`/`maxCategory` to the search
+   request body. First attempt sent `"5EST"`-style strings (a guess from
+   stale docs) and failed live with a 400 — `"Cannot deserialize value of
+   type java.lang.Integer from String '5EST'"` — corrected to plain
+   integers (1-5) after reading the real error, not the docs.
+2. **SerpApi**: `hotel_class` was being sent as a single exact value
+   (e.g. `"5"`), which the user's report clarified was the wrong
+   semantics — a star-rating selection means "this or better", not "only
+   this tier". Now sends every qualifying class as a comma-separated list
+   (`accommodationStars: 4` → `hotel_class=4,5`).
+3. **New guaranteed filter** (`filterByAccommodationStars` in
+   `lib/search.ts`): drops any accommodation offer whose *known* star
+   rating is below the requested minimum, regardless of whether a given
+   provider's own filter actually worked — the same reasoning
+   `filterByTransportModes` already applies to transport modes, since a
+   provider-side filter is a request, not a guarantee. Offers with no
+   parsed star rating are kept rather than dropped, since an unknown
+   rating isn't evidence of failing the minimum.
+
+Verified live via direct API calls (not just reading code): a 5★ search
+returned 13 real Hotelbeds + 14 real SerpApi results, **27/27 confirmed
+5★, zero below**. A 4★ search returned 103 four-star + 15 five-star + 1
+unrated, zero below 4★ — confirming the "minimum, not exact tier"
+semantics work correctly across both providers.
+
+**Departure city defaults to the user's real location (2026-08-02).**
+`lib/cityData.ts`'s `CITY_DATABASE` (132 cities) gained real `lat`/`lng`
+city-center coordinates for every entry, plus `findNearestCity(lat, lng)`
+(Haversine distance, picks the closest of the 132 — verified with a
+standalone script: exact-coordinate match, a nearby-but-not-listed point
+correctly resolving to the right city, and a far-away point still
+resolving to *something* sane rather than crashing). New hook
+`lib/useNearestCity.ts` wraps the browser's own Geolocation API and
+resolves to a city name once (if) the user grants permission — denial,
+no-support, or timeout (8s) all resolve to `null` silently rather than
+erroring, since this is a convenience default, not a required step.
+`app/page.tsx` applies it to `criteria.origin` only while that field still
+has its untouched `DEFAULT_SEARCH.origin` value — if the user has already
+typed a different origin by the time geolocation resolves (it can take a
+few seconds), their edit wins and this is a no-op. No permission prompt is
+forced; the browser's native geolocation dialog only appears because the
+API was called, same as any other site asking for location.
+
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
 1. Token permissions — the original token lacked `air.offer_requests.create`;
@@ -630,7 +725,11 @@ but no provider ever read them back off the object. Verified live
   Hotelbeds is documented to support `filter.minCategory`/`maxCategory`
   too, but **couldn't verify live** — see the quota note above, which
   turned out to affect Hotelbeds' core search endpoint too, not just
-  images. Follow-up once quota resets.
+  images. Follow-up once quota resets. **Fully fixed 2026-08-02** — see
+  the dated note below: Hotelbeds' quota reset, the filter was actually
+  wired in and verified, and both providers plus a new guaranteed
+  safety-net filter now correctly treat the selection as a minimum, not
+  an exact tier.
 - **Preferred transport** (Flight/Train/Bus/Car/Ferry/Transfer) —
   requesting `transportModes: ["train"]` still returned 62 Duffel
   flights, 0 trains. **Fixed**: `lib/search.ts` now filters

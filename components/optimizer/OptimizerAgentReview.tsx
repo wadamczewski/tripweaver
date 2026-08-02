@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, RefreshCcw, Sparkles } from "lucide-react";
+import clsx from "clsx";
+import { ChevronDown, ExternalLink, Loader2, RefreshCcw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./OptimizerAgentReview.module.css";
 import type {
@@ -12,6 +13,11 @@ import type {
   TripOption,
   TripSearchCriteria,
 } from "../../lib/trip/types";
+// The rich, already-scored TripOption (image, formatted totals, provider
+// links) — distinct from the thin trip/types.ts TripOption used for the
+// agent request payload above, hence the alias.
+import type { TripOption as RichTripOption } from "../../lib/types";
+import { formatMoney, getPrimaryTransportLabel, getTripProviderActions } from "../results/helpers";
 
 type Props = {
   criteria: TripSearchCriteria;
@@ -25,6 +31,12 @@ type Props = {
   // review happened to fire first.
   packageOptions: PackageOffer[];
   weights: OptimizerWeights;
+  // The rich version of whichever trip is currently ranked first — once a
+  // review exists this is guaranteed to be the agent's actual pick (see
+  // applyAgentRanking in lib/scoring.ts, which pins recommendedTripId to
+  // the front). Used to show the recommendation's real image, price, and
+  // booking links, not just prose.
+  recommendedTrip?: RichTripOption;
   // Undefined right after a search — the core search results (transport,
   // accommodation, tripOptions) are already in by then, but the agent
   // review is fetched separately and arrives later. This component fires
@@ -48,6 +60,7 @@ export function OptimizerAgentReview({
   tripOptions,
   packageOptions,
   weights,
+  recommendedTrip,
   initialReview,
   onReview,
   onReviewingChange,
@@ -71,6 +84,11 @@ export function OptimizerAgentReview({
     setReview(initialReview ?? null);
     setReviewedWeights(initialReview ? stableJson(initialReview.appliedWeights) : null);
   }, [initialReview]);
+
+  const providerActions = useMemo(
+    () => (recommendedTrip ? getTripProviderActions(recommendedTrip) : []),
+    [recommendedTrip],
+  );
 
   const currentWeights = useMemo(() => stableJson(weights), [weights]);
   const hasChanges = review !== null && currentWeights !== reviewedWeights;
@@ -107,6 +125,9 @@ export function OptimizerAgentReview({
       const nextReview = (await response.json()) as OptimizerAgentReview;
       setReview(nextReview);
       setReviewedWeights(stableJson(nextReview.appliedWeights));
+      // Surface the recommendation as soon as it's ready instead of
+      // leaving it collapsed for the user to notice on their own.
+      setExpanded(true);
       onReview?.(nextReview);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "The optimizer review could not be refreshed.");
@@ -185,7 +206,106 @@ export function OptimizerAgentReview({
       {expanded ? (
         <div className={styles.copy}>
           <h3>{review ? review.headline : "Ranking your results…"}</h3>
-          <p>{review ? review.summary : "The agent is reviewing these results — check back shortly."}</p>
+
+          <div className="relative mt-4 overflow-hidden rounded-lg border border-line bg-paper/60">
+            {isReviewing ? (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/75 text-center backdrop-blur-sm">
+                <Loader2 className="h-6 w-6 animate-spin text-accent" aria-hidden="true" />
+                <p className="px-4 text-sm font-semibold text-ink">
+                  {review
+                    ? "Re-ranking with the latest options…"
+                    : "Ranking your options — this can take up to a minute…"}
+                </p>
+              </div>
+            ) : null}
+
+            <div className={clsx("p-4", isReviewing && "pointer-events-none select-none blur-sm")}>
+              {recommendedTrip ? (
+                <div className="flex flex-col gap-4 sm:flex-row">
+                  {recommendedTrip.accommodation.imageUrl ? (
+                    <img
+                      src={recommendedTrip.accommodation.imageUrl}
+                      alt={recommendedTrip.accommodation.name}
+                      className="h-32 w-full shrink-0 rounded-md object-cover sm:w-40"
+                    />
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-ink">{recommendedTrip.label}</p>
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+                      <span className="text-xl font-bold text-ink">{formatMoney(recommendedTrip.totalPrice)}</span>
+                      <span className="text-sm text-ink/60">
+                        {formatMoney(recommendedTrip.pricePerPerson)} per person
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink/60">
+                      <span>{getPrimaryTransportLabel(recommendedTrip)}</span>
+                      <span>
+                        {recommendedTrip.accommodation.name} ({recommendedTrip.accommodation.rating}★)
+                      </span>
+                      <span>Score {recommendedTrip.score}/100</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {review ? (
+                <>
+                  <section className={recommendedTrip ? "mt-4" : undefined}>
+                    <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">Why this trip</h4>
+                    <p className="mt-1 text-sm leading-6 text-ink/75">{review.summary}</p>
+                  </section>
+
+                  {review.tradeoffs.length > 0 ? (
+                    <section className="mt-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">Trade-offs</h4>
+                      <ul className="mt-1 space-y-1">
+                        {review.tradeoffs.map((tradeoff) => (
+                          <li key={tradeoff} className="flex gap-2 text-sm leading-6 text-ink/75">
+                            <span className="text-ink/40" aria-hidden="true">
+                              •
+                            </span>
+                            {tradeoff}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+
+                  {providerActions.length > 0 ? (
+                    <section className="mt-4 flex flex-wrap gap-2">
+                      {providerActions.map((action) => (
+                        <a
+                          key={action.id}
+                          href={action.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-accent/30 hover:text-accentDark"
+                        >
+                          {action.label}
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                        </a>
+                      ))}
+                    </section>
+                  ) : null}
+
+                  {review.warnings.length > 0 ? (
+                    <section className="mt-4 rounded-md bg-accent/10 p-3">
+                      {review.warnings.map((warning) => (
+                        <p key={warning} className="text-sm leading-6 text-accentDark">
+                          {warning}
+                        </p>
+                      ))}
+                    </section>
+                  ) : null}
+                </>
+              ) : (
+                <p className={clsx("text-sm text-ink/60", recommendedTrip && "mt-4")}>
+                  The agent is reviewing these results — check back shortly.
+                </p>
+              )}
+            </div>
+          </div>
+
           <p className={styles.statusBody}>{statusBody}</p>
           {error ? <p className={styles.error}>{error}</p> : null}
         </div>

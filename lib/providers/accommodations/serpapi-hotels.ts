@@ -66,10 +66,18 @@ export const serpapiHotelsProvider: TravelProvider<AccommodationOffer> = {
     }
 
     // Real, documented SerpApi param — verified live. accommodationStars is
-    // only set for the exact 3/4/5-star tiers (see toTripSearchCriteria);
-    // "Any stay"/"Apartment" leave it unset, matching "no star filter".
+    // a minimum ("4-star" means "4-star or better"), not an exact tier, so
+    // this sends every qualifying class (e.g. 4 -> "4,5") rather than just
+    // the one selected — a single value previously meant "exactly this
+    // class", which silently excluded better hotels and (depending on how
+    // Google interpreted a lone value) could still admit worse ones.
+    // Unset for "Any stay"/"Apartment", matching "no star filter".
     if (criteria.accommodationStars) {
-      params.set("hotel_class", String(criteria.accommodationStars));
+      const qualifyingClasses: number[] = [];
+      for (let stars = criteria.accommodationStars; stars <= 5; stars++) {
+        qualifyingClasses.push(stars);
+      }
+      params.set("hotel_class", qualifyingClasses.join(","));
     }
 
     const response = await fetchJson<SerpApiHotelsResponse>(`${SERPAPI_BASE_URL}?${params.toString()}`);

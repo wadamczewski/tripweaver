@@ -101,15 +101,29 @@ function heuristicReview(input: ReviewInput): OptimizerAgentReview {
     id: option.id,
     label: `${option.transport.providerName} + ${option.accommodation.providerName}`,
     score: fallbackScore(option, cheapest, fastest, input.weights),
+    totalPrice: option.totalPrice.amount,
+    durationMinutes: option.transport.durationMinutes,
   }));
   const rankedPackages = packageOptions.map((offer, index) => ({
     id: offer.id,
     label: `${offer.tourOperator} package — ${offer.hotelName}`,
     score: fallbackScorePackage(offer, packagePricesInCurrency[index], cheapest, input.weights),
+    totalPrice: packagePricesInCurrency[index],
+    durationMinutes: undefined as number | undefined,
   }));
 
   const ranked = [...rankedTrips, ...rankedPackages].sort((a, b) => b.score - a.score);
   const winner = ranked[0];
+
+  const tradeoffs: string[] = [];
+  if (winner) {
+    if (cheapest > 0 && winner.totalPrice > cheapest) {
+      tradeoffs.push(`Costs ${Math.round(winner.totalPrice - cheapest)} more than the cheapest option in this search.`);
+    }
+    if (winner.durationMinutes && Number.isFinite(fastest) && winner.durationMinutes > fastest) {
+      tradeoffs.push(`Takes ${Math.round(winner.durationMinutes - fastest)} minutes longer than the fastest option.`);
+    }
+  }
 
   return {
     recommendedTripId: winner?.id,
@@ -117,6 +131,7 @@ function heuristicReview(input: ReviewInput): OptimizerAgentReview {
     summary: winner
       ? "The fallback optimizer ranked the available results with the current Trip Optimizer settings. Add OPENAI_API_KEY to enable the agent review."
       : "No provider returned enough results to review.",
+    tradeoffs,
     rankedTripIds: ranked.map((option) => option.id),
     warnings:
       input.tripOptions.length === 0 && packageOptions.length === 0
@@ -157,7 +172,7 @@ function reviewPrompt(input: ReviewInput) {
     {
       role: "system",
       content:
-        "You are TripWeaver's trip optimization agent.\n\nYour job is to rank real travel search results for a family trip. Use only the provided options. Do not invent prices, routes, hotels, amenities, policies, or availability.\n\nTwo kinds of options are provided, and you must rank them together in one list, not as separate categories: tripOptions (self-organized flight + hotel combos) and packageOptions (bundled tour-operator holiday packages, priced as a single total). A package's flight duration and per-line costs aren't broken out — judge it mainly on total price, hotel rating, and whether luggage/transfers are included.\n\nEach option includes a localScore (0-1): price, speed, comfort, luggage, and familyFit already combined per the given weights, using the SAME formula for every option. Use it as your primary ranking signal — sort by it first, then reorder only where a field it can't see (a real warning, a policy detail, an especially poor family fit) genuinely changes the call. Do not silently revert to ranking by price alone; if price ends up dominating your final order, it should be because the weights say price matters most, not because it was the easiest number to compare across hundreds of options.\n\nApply the Trip Optimizer weights exactly, same definitions localScore already used:\n- price: lower total trip price is better\n- speed: shorter transport duration and fewer stops are better (packages have no known duration — treat as average)\n- comfort: better accommodation quality, ratings, and room fit are better\n- luggage: included checked luggage is better when requested\n- familyFit: age-aware pricing, suitable room allocation, and lower friction for children are better (an included airport transfer counts in favor of a package here)\n\nExplain the tradeoff behind the recommendation in plain language. If results are incomplete, currencies do not match, providers failed, or important family constraints are missing, include warnings.\n\nReturn only valid JSON matching the provided schema. rankedTripIds must be a single list mixing tripOptions ids and packageOptions ids, ordered best first.",
+        "You are TripWeaver's trip optimization agent.\n\nYour job is to rank real travel search results for a family trip. Use only the provided options. Do not invent prices, routes, hotels, amenities, policies, or availability.\n\nTwo kinds of options are provided, and you must rank them together in one list, not as separate categories: tripOptions (self-organized flight + hotel combos) and packageOptions (bundled tour-operator holiday packages, priced as a single total). A package's flight duration and per-line costs aren't broken out — judge it mainly on total price, hotel rating, and whether luggage/transfers are included.\n\nEach option includes a localScore (0-1): price, speed, comfort, luggage, and familyFit already combined per the given weights, using the SAME formula for every option. Use it as your primary ranking signal — sort by it first, then reorder only where a field it can't see (a real warning, a policy detail, an especially poor family fit) genuinely changes the call. Do not silently revert to ranking by price alone; if price ends up dominating your final order, it should be because the weights say price matters most, not because it was the easiest number to compare across hundreds of options.\n\nApply the Trip Optimizer weights exactly, same definitions localScore already used:\n- price: lower total trip price is better\n- speed: shorter transport duration and fewer stops are better (packages have no known duration — treat as average)\n- comfort: better accommodation quality, ratings, and room fit are better\n- luggage: included checked luggage is better when requested\n- familyFit: age-aware pricing, suitable room allocation, and lower friction for children are better (an included airport transfer counts in favor of a package here)\n\nReturn two separate pieces of reasoning, not one blended paragraph: `summary` explains WHY the recommended option best fits the given weights (which weighted factors it wins on and why that matters here); `tradeoffs` is a short list of what the recommendation gives up compared to other strong options (e.g. costs more than the cheapest, slower than the fastest, less family-friendly than another pick) — omit tradeoffs the recommendation doesn't actually have rather than padding the list. If results are incomplete, currencies do not match, providers failed, or important family constraints are missing, include warnings.\n\nReturn only valid JSON matching the provided schema. rankedTripIds must be a single list mixing tripOptions ids and packageOptions ids, ordered best first.",
     },
     {
       role: "user",
@@ -166,7 +181,8 @@ function reviewPrompt(input: ReviewInput) {
         outputSchema: {
           recommendedTripId: "string",
           headline: "string",
-          summary: "string",
+          summary: "string, why the recommended option fits the weights",
+          tradeoffs: ["string, what the recommendation gives up vs other strong options"],
           rankedTripIds: ["string"],
           warnings: ["string"],
         },
@@ -225,10 +241,11 @@ function optimizerReviewSchema() {
         recommendedTripId: { type: "string" },
         headline: { type: "string" },
         summary: { type: "string" },
+        tradeoffs: { type: "array", items: { type: "string" } },
         rankedTripIds: { type: "array", items: { type: "string" } },
         warnings: { type: "array", items: { type: "string" } },
       },
-      required: ["recommendedTripId", "headline", "summary", "rankedTripIds", "warnings"],
+      required: ["recommendedTripId", "headline", "summary", "tradeoffs", "rankedTripIds", "warnings"],
     },
   };
 }
@@ -304,6 +321,7 @@ export async function reviewTripOptionsWithAgent(input: ReviewInput): Promise<Op
       recommendedTripId: parsed.recommendedTripId,
       headline: parsed.headline ?? "Trip options reviewed",
       summary: parsed.summary ?? "The optimizer agent reviewed the available trip options.",
+      tradeoffs: Array.isArray(parsed.tradeoffs) ? parsed.tradeoffs : [],
       rankedTripIds: Array.isArray(parsed.rankedTripIds) ? parsed.rankedTripIds : [],
       warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
       appliedWeights: weights,

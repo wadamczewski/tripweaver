@@ -224,6 +224,21 @@ export const hotelbedsAccommodationProvider: TravelProvider<AccommodationOffer> 
             : {}),
         })),
         destination: { code: destination.hotelbedsDestinationCode },
+        // accommodationStars is a minimum ("4-star" means "4-star or
+        // better"), not an exact match — previously never sent at all, so
+        // a "5-star" search still returned every category. minCategory/
+        // maxCategory take plain integers (1-5) — verified live: sending
+        // "5EST" (a guess based on stale docs) failed with a 400
+        // "Cannot deserialize value of type java.lang.Integer from String
+        // '5EST'" — corrected to a bare number.
+        ...(criteria.accommodationStars
+          ? {
+              filter: {
+                minCategory: criteria.accommodationStars,
+                maxCategory: 5,
+              },
+            }
+          : {}),
       }),
     });
 
