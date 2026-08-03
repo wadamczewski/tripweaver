@@ -128,40 +128,6 @@
   color: #a33826 !important;
 }
 
-.button {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 999px;
-  color: #ffffff;
-  background: #102033;
-  font-size: 15px;
-  font-weight: 800;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: 0 12px 28px rgba(15, 31, 49, 0.18);
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    opacity 160ms ease;
-}
-
-.button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 34px rgba(15, 31, 49, 0.22);
-}
-
-.button:disabled {
-  cursor: progress;
-  opacity: 0.72;
-  transform: none;
-}
-
 @keyframes agentPulse {
   0%,
   100% {

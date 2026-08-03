@@ -27,7 +27,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import { convertMoney, formatMoney } from "@/lib/currency";
-import { DEFAULT_TRANSPORT_MODES, summarizeTravelers } from "@/lib/defaults";
+import { DEFAULT_TRANSPORT_MODES } from "@/lib/defaults";
 import type { Currency, PreferenceKey, SearchCriteria, TransportMode } from "@/lib/types";
 import { validateSearchCriteria } from "@/lib/validation";
 
@@ -35,16 +35,8 @@ import { CityAutocomplete } from "@/components/ui/CityAutocomplete";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Tooltip } from "@/components/ui/Tooltip";
 
-import { RoomAllocator } from "./RoomAllocator";
 import { TravelerSelector } from "./TravelerSelector";
-import {
-  ACCOMMODATION_OPTIONS,
-  buildRoomsForTravelers,
-  cn,
-  PREFERENCE_OPTIONS,
-  roomAffectingTravelerShapeChanged,
-  TRANSPORT_OPTIONS
-} from "./searchUtils";
+import { ACCOMMODATION_OPTIONS, buildRoomsForTravelers, cn, PREFERENCE_OPTIONS, TRANSPORT_OPTIONS } from "./searchUtils";
 
 export type SearchPanelProps = {
   criteria: SearchCriteria;
@@ -59,7 +51,7 @@ export type SearchPanelProps = {
   className?: string;
 };
 
-type WizardStepId = "route" | "travelers" | "preferences" | "review";
+type WizardStepId = "basics" | "preferences";
 
 const CURRENCIES: Currency[] = ["PLN", "EUR"];
 
@@ -70,28 +62,16 @@ const wizardSteps: Array<{
   description: string;
 }> = [
   {
-    id: "route",
-    title: "Where and when?",
+    id: "basics",
+    title: "Where and who?",
     eyebrow: "Step 1",
-    description: "Set the route, dates, and whether TripWeaver can check nearby dates."
-  },
-  {
-    id: "travelers",
-    title: "Who is traveling?",
-    eyebrow: "Step 2",
-    description: "Add ages and room allocation so every provider prices the same group correctly."
+    description: "Set the route, dates, and who's traveling."
   },
   {
     id: "preferences",
     title: "What matters most?",
-    eyebrow: "Step 3",
+    eyebrow: "Step 2",
     description: "Choose transport, stay type, budget, luggage, packages, and optimization priorities."
-  },
-  {
-    id: "review",
-    title: "Ready to compare",
-    eyebrow: "Step 4",
-    description: "Review the trip brief, then run the complete comparison."
   }
 ];
 
@@ -190,44 +170,7 @@ export function SearchPanel({
       onSubmit={handleSubmit}
       noValidate
     >
-      <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="bg-ink p-5 text-white lg:p-6">
-
-          <div className="mt-7 grid grid-cols-1 gap-2 sm:space-y-2">
-            {wizardSteps.map((step, index) => {
-              const isActive = index === activeStep;
-              const isDone = index < activeStep;
-
-              return (
-                <button
-                  type="button"
-                  key={step.id}
-                  onClick={() => setActiveStep(index)}
-                  className={cn(
-                    "group flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition",
-                    isActive ? "bg-white text-ink shadow-soft" : "text-white/66 hover:bg-white/8 hover:text-white"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold",
-                      isActive ? "bg-accent text-white" : isDone ? "bg-sage text-white" : "bg-white/10 text-white/62"
-                    )}
-                  >
-                    {isDone ? <Check className="h-4 w-4" aria-hidden="true" /> : index + 1}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold">{step.title}</span>
-                    <span className={cn("mt-1 hidden text-xs leading-5 sm:block", isActive ? "text-ink/56" : "text-white/44")}>
-                      {step.description}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
+      <div className="grid min-w-0 grid-cols-1">
         <section className="min-w-0 bg-[#fbf7ef]">
           <div className="border-b border-line/80 px-5 py-5 sm:px-7">
             <div className="animate-fade-up" key={currentStep.id}>
@@ -239,12 +182,8 @@ export function SearchPanel({
 
           <div className="min-w-0 p-5 sm:p-7">
             <div className="min-h-[420px] animate-fade-up" key={currentStep.id}>
-              {currentStep.id === "route" ? (
-                <RouteStep criteria={criteria} updateCriteria={updateCriteria} />
-              ) : null}
-
-              {currentStep.id === "travelers" ? (
-                <TravelersStep criteria={criteria} updateCriteria={updateCriteria} />
+              {currentStep.id === "basics" ? (
+                <BasicsStep criteria={criteria} updateCriteria={updateCriteria} />
               ) : null}
 
               {currentStep.id === "preferences" ? (
@@ -258,7 +197,6 @@ export function SearchPanel({
                 />
               ) : null}
 
-              {currentStep.id === "review" ? <ReviewStep criteria={criteria} errors={computedErrors} /> : null}
             </div>
 
             {visibleErrors.length > 0 ? (
@@ -320,75 +258,7 @@ export function SearchPanel({
   );
 }
 
-function RouteStep({
-  criteria,
-  updateCriteria
-}: {
-  criteria: SearchCriteria;
-  updateCriteria: (patch: Partial<SearchCriteria>) => void;
-}) {
-  return (
-    <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)]">
-          <CityAutocomplete
-            label="Departure city"
-            value={criteria.origin}
-            onChange={(value) => updateCriteria({ origin: value })}
-            placeholder="Szczecin"
-          />
-          <div className="hidden md:flex md:flex-col">
-            <span className="invisible mb-2 flex items-center gap-2 text-sm font-semibold" aria-hidden="true">
-              <MapPin className="h-4 w-4" />
-              Route
-            </span>
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-accent shadow-sm">
-              <ArrowRight className="h-5 w-5" aria-hidden="true" />
-            </div>
-          </div>
-          <CityAutocomplete
-            label="Destination"
-            value={criteria.destination}
-            onChange={(value) => updateCriteria({ destination: value })}
-            placeholder="Barcelona or Anywhere"
-            allowAnywhere
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-end">
-          <TextField
-            label="Departure date"
-            icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
-            type="date"
-            value={criteria.departureDate}
-            onChange={(value) => updateCriteria({ departureDate: value })}
-          />
-          <TextField
-            label="Return date"
-            icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
-            type="date"
-            value={criteria.returnDate}
-            onChange={(value) => updateCriteria({ returnDate: value })}
-          />
-          <div className="flex flex-col">
-            <span className="invisible mb-2 flex items-center gap-2 text-sm font-semibold" aria-hidden="true">
-              <CalendarDays className="h-4 w-4" />
-              Flexible
-            </span>
-            <SwitchTile
-              icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
-              label="Flexible dates"
-              helper="Check one or two nearby dates for visible savings"
-              checked={criteria.flexibleDates}
-              onChange={(checked) => updateCriteria({ flexibleDates: checked })}
-              compact
-            />
-          </div>
-        </div>
-    </div>
-  );
-}
-
-function TravelersStep({
+function BasicsStep({
   criteria,
   updateCriteria
 }: {
@@ -397,22 +267,72 @@ function TravelersStep({
 }) {
   return (
     <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)]">
+        <CityAutocomplete
+          label="Departure city"
+          value={criteria.origin}
+          onChange={(value) => updateCriteria({ origin: value })}
+          placeholder="Szczecin"
+        />
+        <div className="hidden md:flex md:flex-col">
+          <span className="invisible mb-2 flex items-center gap-2 text-sm font-semibold" aria-hidden="true">
+            <MapPin className="h-4 w-4" />
+            Route
+          </span>
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-accent shadow-sm">
+            <ArrowRight className="h-5 w-5" aria-hidden="true" />
+          </div>
+        </div>
+        <CityAutocomplete
+          label="Destination"
+          value={criteria.destination}
+          onChange={(value) => updateCriteria({ destination: value })}
+          placeholder="Barcelona or Anywhere"
+          allowAnywhere
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-end">
+        <TextField
+          label="Departure date"
+          icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
+          type="date"
+          value={criteria.departureDate}
+          onChange={(value) => updateCriteria({ departureDate: value })}
+        />
+        <TextField
+          label="Return date"
+          icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
+          type="date"
+          value={criteria.returnDate}
+          onChange={(value) => updateCriteria({ returnDate: value })}
+        />
+        <div className="flex flex-col">
+          <span className="invisible mb-2 flex items-center gap-2 text-sm font-semibold" aria-hidden="true">
+            <CalendarDays className="h-4 w-4" />
+            Flexible
+          </span>
+          <SwitchTile
+            icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
+            label="Flexible dates"
+            helper="Check one or two nearby dates for visible savings"
+            checked={criteria.flexibleDates}
+            onChange={(checked) => updateCriteria({ flexibleDates: checked })}
+            compact
+          />
+        </div>
+      </div>
+
       <TravelerSelector
         travelers={criteria.travelers}
-        onTravelersChange={(travelers) => {
+        onTravelersChange={(travelers) =>
           updateCriteria({
             travelers,
-            rooms: roomAffectingTravelerShapeChanged(criteria.travelers, travelers)
-              ? buildRoomsForTravelers(travelers)
-              : criteria.rooms
-          });
-        }}
-      />
-
-      <RoomAllocator
-        rooms={criteria.rooms}
-        travelers={criteria.travelers}
-        onRoomsChange={(rooms) => updateCriteria({ rooms })}
+            // No manual room-editing UI anymore — always auto-derive a
+            // sensible room split from the traveler group.
+            rooms: buildRoomsForTravelers(travelers)
+          })
+        }
       />
     </div>
   );
@@ -636,32 +556,6 @@ function PreferencesStep({
   );
 }
 
-function ReviewStep({ criteria, errors }: { criteria: SearchCriteria; errors: string[] }) {
-  const rooms = criteria.rooms.length;
-
-  return (
-    <div className="rounded-[26px] border border-line bg-white p-5 shadow-soft">
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-accentDark">Search summary</p>
-      <h3 className="mt-2 text-3xl font-semibold tracking-tight text-ink">
-        {criteria.origin} to {criteria.destination || "Anywhere"}
-      </h3>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <ReviewTile label="Dates" value={`${criteria.departureDate} to ${criteria.returnDate}`} />
-        <ReviewTile label="Travelers" value={summarizeTravelers(criteria.travelers)} />
-        <ReviewTile label="Rooms" value={`${rooms} room${rooms === 1 ? "" : "s"} configured`} />
-        <ReviewTile label="Budget" value={criteria.budget ? formatMoney(criteria.budget) : "No cap"} />
-        <ReviewTile label="Transport" value={criteria.selectedTransportModes.join(", ")} />
-        <ReviewTile label="Packages" value={criteria.packageHolidaysEnabled ? "Included" : "Skipped"} />
-      </div>
-      {errors.length > 0 ? (
-        <div className="mt-5 rounded-2xl border border-accent/25 bg-accent/5 p-3 text-sm text-accentDark">
-          {errors.length} detail{errors.length === 1 ? "" : "s"} need attention before searching.
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function TextField({
   label,
   value,
@@ -754,14 +648,5 @@ function SwitchTrack({ checked }: { checked: boolean }) {
     >
       <span className={cn("h-4 w-4 rounded-full bg-white shadow-sm transition", checked ? "translate-x-5" : "translate-x-0")} />
     </span>
-  );
-}
-
-function ReviewTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-[#fbf7ef] p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink/65">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-ink">{value}</p>
-    </div>
   );
 }

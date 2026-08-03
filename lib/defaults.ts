@@ -12,12 +12,16 @@ export const DEFAULT_TRANSPORT_MODES: TransportMode[] = ["flight", "train", "bus
 
 export const DEFAULT_PREFERENCES: PreferenceKey[] = ["cheapest", "fewestTransfers", "hotelQuality"];
 
+// Aligned to the optimizer panel's Low/Balanced/High tiers (10/25/40 — see
+// OptimizerPanel.tsx) and to what weightsFromPreferences(DEFAULT_PREFERENCES)
+// itself produces, so the very first render (before any search) already
+// lands exactly on a tier instead of an approximate "nearest" match.
 export const DEFAULT_WEIGHTS: OptimizerWeights = {
-  price: 38,
-  travelTime: 22,
-  convenience: 18,
-  hotelQuality: 14,
-  sustainability: 8
+  price: 40,
+  travelTime: 10,
+  convenience: 40,
+  hotelQuality: 40,
+  sustainability: 10
 };
 
 export const DEFAULT_CHILD_AGES = [14];

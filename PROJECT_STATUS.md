@@ -1,6 +1,6 @@
 # TripWeaver — Project Status
 
-Last updated: 2026-08-02. This file is meant to give a fresh chat session (or a
+Last updated: 2026-08-03. This file is meant to give a fresh chat session (or a
 different person) full context without re-reading the whole history. Read this
 first before touching code.
 
@@ -572,6 +572,204 @@ trip card's "Door-to-door timeline" now shows all 6 real steps ending in
 real dates (12 Sept vs. 19 Sept) — while the compact "Times" stat correctly
 stayed outbound-only ("02:00 to 04:17"), confirming no regression there.
 
+**Agent notes moved to a sticky right rail (2026-08-03).** User feedback:
+the agent's caveats/data-gap notes (e.g. "ranked list truncated", "confirm
+child pricing with the provider") — rendered inline at the bottom of the
+"Trip Optimizer agent" card (`review.warnings`) — took up too much vertical
+space and scrolled away with the rest of the results column. Moved to a new
+`AgentNotesPanel` (`app/page.tsx`), a third sticky grid column
+(`lg:grid-cols-[400px_minmax(0,1fr)_320px]`, same `lg:sticky lg:top-6`
+treatment as the existing left `OptimizerPanel` rail) that only appears when
+`realResults.optimizerReview?.warnings` is non-empty — the grid falls back
+to the original two-column layout otherwise, so no empty rail on searches
+with nothing to flag. `OptimizerAgentReview.tsx` no longer renders the
+warnings block itself. Shows a small "Updating…" label while a re-review is
+in flight (`isAgentReviewing`, already tracked in `page.tsx`) instead of
+silently going stale.
+
+**Optimizer panel redesign — removed fabricated content, replaced percent
+sliders (2026-08-03).** User report, prompted by actually reading the
+panel closely: "I get an impression that 90% of this section is static...
+I don't want anything static." Investigated rather than assumed — and the
+instinct was correct, worse than it looked:
+
+- **"Comparison checks" (5 scenario cards — Separate booking, Package
+  holiday, Berlin departure, Date shift, Room and luggage) was almost
+  entirely fabricated.** `buildOptimizerScenarios()` (old
+  `OptimizerPanel.tsx`) computed "Berlin departure"/"Date shift"/"Room and
+  luggage" from **hardcoded price multipliers** (e.g. `priceMultiplier:
+  0.92` for Berlin departure, applied to whatever the current trip's real
+  price happened to be) with **hardcoded duration/score deltas** — not a
+  real alternate search, not a real comparison, just arithmetic theater
+  dressed up as "Five optimizer agents, no new provider search." Worse:
+  "Separate booking"/"Package holiday" were only real when a genuine
+  alternate trip existed in the `results`/`criteria` props passed to the
+  panel — but `app/page.tsx` never passed those props (confirmed by
+  grep — `results`/`criteria`/`comparisonScenarios`/`selectedScenarioId`/
+  `onSelectedScenarioChange`/`onResetWeights` were all dead, unused-by-any-
+  caller props), so in the app as actually wired up, the comparison pool
+  was just `[activeTrip, ...comparedTrips]` (1-4 trips) — meaning even
+  those two "real" scenarios fell through to their own fabricated fallback
+  almost every time in practice. This was the single biggest source of the
+  "static" impression, and it directly violates this project's
+  no-fabricated-data principle (already enforced everywhere else — see the
+  2026-08-02 "Removed fabricated demo data" note). **Removed entirely**,
+  along with the "Savings opportunities" section that was partly built
+  from these same fake scenarios (its own hardcoded fallback — "Flexible
+  date check"/"Room and luggage check" at 0 savings when nothing real was
+  available — removed too, same reasoning).
+- **The weight sliders' displayed percentage was genuinely disorienting,**
+  not just unpolished: each slider showed `value / sum-of-all-five-sliders`,
+  so dragging *any one* slider silently changed the displayed percentage
+  next to every *other* slider too — a user adjusting "Price" would see
+  "Hotel quality"'s number change despite never touching it. Replaced with
+  a 3-tier **Low / Balanced / High segmented control per priority** (no
+  percent signs, no cross-slider interference — picking a level sets one
+  fixed internal number: 10/25/40) — a standard, amateur-friendly pattern
+  for "how much does X matter" (segmented pills, not free-dragging
+  numbers). `DEFAULT_WEIGHTS` (`lib/defaults.ts`) and the tier values were
+  chosen to align exactly with what `weightsFromPreferences()`
+  (`lib/adapters/criteria.ts`, unchanged) already produces from the search
+  wizard's checkboxes (base 10 / boosted 40) — so a weight set from the
+  wizard lands precisely on a tier here, not an approximate "nearest"
+  match.
+- **The real score breakdown's "raw × weight% = points" arithmetic line
+  was dropped** in favor of just the bar + the same real one-line detail
+  sentence (e.g. "7,186 zł total, benchmarked against the trips you're
+  comparing.") — the underlying `raw`/`points` math is still real and
+  still drives the one overall score number shown once at the top (the
+  duplicate score badge that used to also appear inside "Score
+  explanation" was removed — same number, shown once, not twice).
+- **What stayed, because it's real, not fabricated:** the weight controls
+  themselves, the live weighted score, the per-factor score bars (derived
+  from the actual selected trip vs. the real comparison pool via
+  `inverseRangeScore`), "Why this trip" (`recommendationReasons`, computed
+  from real price/duration deltas against the actual cheapest/fastest
+  trip), and "Worth checking" (`savingOpportunities`, computed from real
+  luggage/room data) — kept, just re-presented without the removed
+  fabricated content around them.
+
+Net effect: the panel is roughly half the length it was, and everything
+still on screen recomputes for real when a priority changes — verified
+live by clicking Sustainability from Low to High on a high-carbon (1,658 kg
+CO2e) recommended trip and watching the score drop from 83 to 69 instantly.
+
+**Removed the search wizard's left step sidebar (2026-08-03).** User
+request. `components/search/SearchPanel.tsx` had a dark `18rem` `<aside>`
+listing all four steps with numbered circles and descriptions, letting you
+jump to any step by clicking it. Removed outright — the step content
+already repeats the same "STEP N / title / description" header inline at
+the top of each step (unchanged), and the small progress-dot row between
+the Back/Continue buttons (unchanged) still shows where you are, so no
+wayfinding was actually lost, just the redundant, real-estate-heavy copy
+of it. Back/Continue still move sequentially; jumping directly to an
+arbitrary step by number is gone (arguably more correct for a wizard that
+validates as you go, rather than less). Verified live: full click-through
+of the wizard (Step 1 → Step 2 → ...) still works, full-width, no sidebar.
+
+**Search wizard cut from 4 steps to 2, room allocation UI removed
+(2026-08-03).** User request. Merged the old "Where and when?" and "Who is
+traveling?" steps into one `BasicsStep` (route/dates + `TravelerSelector`),
+dropped the old "Ready to compare" review step entirely (`ReviewStep`/
+`ReviewTile` deleted), and removed `RoomAllocator.tsx` outright — deleted
+the file, its export from `components/search/index.ts`, and the now-dead
+`roomAffectingTravelerShapeChanged`/`joinAges` helpers in `searchUtils.ts`
+(confirmed via grep neither had any other caller). Room occupancy still
+gets sent to providers correctly — `criteria.rooms` is now always
+auto-derived from the traveler group on every traveler change
+(`buildRoomsForTravelers`, the same function the old "Auto-fit" button
+called), just without a manual per-room editing UI in front of it. What's
+now Step 2 ("What matters most?", the old Step 3) submits the search
+directly — its button already read "Find my trip" once it became the
+final step, no new submit-handling code needed since `handleSubmit`
+already keyed off `isLastStep` generically. Verified live: full click-
+through (Step 1 → Step 2 → search) completes normally, real results
+render, no room-allocation UI present, `npx tsc --noEmit` clean.
+
+**Compare feature hidden, not removed (2026-08-03).** User request: hide
+the trip-comparison UI (the per-card "Compare"/"Compared" toggle in
+`TripOptionCard.tsx` and the floating `CompareBar` shown once trips are
+selected) — flagged to revisit later, not delete. Worth noting why this
+was an easy call: `onCompareSelected` (the handler for the bar's "Compare
+selected" button, meant to open an actual side-by-side view) was never
+wired up in `app/page.tsx` in the first place — clicking it already did
+nothing, so the feature was visually present but functionally a dead end
+even before this change. Added a single flag,
+`COMPARE_FEATURE_ENABLED = false` (`components/results/helpers.ts`), and
+gated both render sites behind it — no other logic touched.
+`compareIds` state in `app/page.tsx`, `ResultsTabs`'
+`onToggleCompare`/`onCompare`/`onRemoveCompared`/`onClearCompare` props,
+and `CompareBar.tsx` itself are all left intact and functional, just
+unreachable from the UI now — flip the flag back to `true` (and actually
+build the side-by-side view behind "Compare selected") to bring it back.
+One real side effect worth knowing: `OptimizerPanel`'s score-breakdown
+bars use `comparedTrips` as part of their benchmarking pool
+(`[activeTrip, ...comparedTrips]`) — with compare hidden, that pool is now
+always just the single active trip, which `inverseRangeScore` already
+handles gracefully (returns a flat 88 when there's nothing to compare
+against, by design) — not a new bug, just means those bars currently
+never reflect a real spread. Verified live: the per-card toggle and
+floating bar are both gone from a real 215-trip result set; only the
+save (heart) icon remains on each card.
+
+**Agent content moved to a real third grid column; center column no
+longer shrinks (2026-08-03).** User request, fixing a real layout bug:
+the right column (Trip Optimizer agent card + agent notes) was a third
+CSS grid track (`400px_minmax(0,1fr)_320px`) — adding it necessarily
+shrank the center `1fr` track, since total width is fixed.
+
+First attempt made the grid always two columns (`400px_minmax(0,1fr)`,
+never three) and floated the right-side content via `position: fixed`
+outside the grid's width accounting, hidden below the `2xl` (1536px)
+breakpoint. **User explicitly rejected this**: "there have to be 3
+column, just use the whole web width wiser, right column (the ai
+related one) needs to be visible" — a fixed/hidden overlay isn't a real
+third column, and hiding it below 1536px meant it often wasn't visible
+at all. Corrected approach: the grid genuinely **is** three columns
+(`lg:grid-cols-[400px_minmax(0,1fr)_320px]`, both side columns
+`lg:sticky lg:top-6`, visible from `lg:` — 1024px+ — not gated behind
+`2xl:`), and the results section's container widens from `max-w-7xl` to
+`max-w-[1800px]` (only while `status === "ready"`) so the third column
+has real room without taking width from the center one. Relocated, per
+explicit request:
+- **All Trip Optimizer agent content** — the full `OptimizerAgentReview`
+  card (headline, recommended trip, why-this-trip, trade-offs) plus the
+  existing `AgentNotesPanel` — now render together in that fixed right
+  rail, stacked with a shared max-height split between them (full height
+  to the review card alone when there are no notes to show).
+- **Except "Review updated ranking"**, which now lives in the **left**
+  column instead, centered directly under `OptimizerPanel`'s "Reset to
+  defaults" — right next to the priority controls that would actually
+  trigger it, rather than in a card that's now visually far away on the
+  right. Required a real cross-component wire-up since the button and the
+  review-triggering logic are no longer in the same part of the tree:
+  `OptimizerAgentReview` became a `forwardRef` component exposing
+  `requestReview()` via `useImperativeHandle` (new export
+  `OptimizerAgentReviewHandle`), plus a new `onHasChangesChange` callback
+  prop (mirrors the existing `onReviewingChange` pattern) so `app/page.tsx`
+  can track `hasChanges` without duplicating the comparison logic.
+  `app/page.tsx` holds an `agentReviewRef` and calls
+  `agentReviewRef.current?.requestReview()` from the new button in
+  `OptimizerPanel` (which gained `hasChanges`/`isReviewing`/
+  `onRequestReview` props). No other logic moved or changed.
+- **Center column now genuinely starts with the "Results" heading** —
+  removing `OptimizerAgentReview` from the center column (it's the only
+  thing that used to sit above `ResultsTabs` there) means `ResultsTabs`'
+  own `<h1>Results</h1>` is now the first thing rendered in that column.
+
+Verified live at 1440px width: all three columns ("What matters most?"
+/ "Results" trip cards / "Trip Optimizer agent") render simultaneously
+and visibly, with the center column starting right at the "Results"
+heading; "Review updated ranking" appears centered under "Reset to
+defaults" in the left column only when a priority change actually maps
+onto the agent's real weight axes (confirmed live — changing only
+Sustainability, which `toRealWeights()` intentionally doesn't map to any
+agent axis, correctly does *not* trigger it; changing Price does);
+clicking it successfully re-triggered a real review shown in the right
+column, sourced through the ref. Below `lg:` (1024px), the grid falls
+back to a single column and all three sections stack vertically, same
+as the left column's pre-existing responsive behavior.
+
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
 1. Token permissions — the original token lacked `air.offer_requests.create`;
@@ -981,39 +1179,49 @@ interface. Treat them as reference/history, not working code.
 
 ## What's implemented
 
-**Search wizard** (`components/search/SearchPanel.tsx`, 4 steps):
+**Search wizard** (`components/search/SearchPanel.tsx`, 2 steps as of
+2026-08-03 — see the dated note below for the 4→2 step merge/removal):
 - Step 1: origin/destination with real client-side autocomplete (`lib/cityData.ts`,
   ~130 major cities + IATA codes, `components/ui/CityAutocomplete.tsx`), dates,
-  flexible-dates toggle
-- Step 2: traveler counts, child/infant ages, room allocation
-  (`TravelerSelector.tsx`, `RoomAllocator.tsx` — recently made compact)
-- Step 3: budget **range** slider (dual-thumb, `components/ui/RangeSlider.tsx`,
-  new `SearchCriteria.budgetMin` field), transport mode picker, accommodation
+  flexible-dates toggle, and traveler counts/child+infant ages
+  (`TravelerSelector.tsx`) — room allocation is auto-derived from the
+  traveler group (`buildRoomsForTravelers`), no manual room-editing UI
+- Step 2: budget **range** slider (dual-thumb, `components/ui/RangeSlider.tsx`,
+  `SearchCriteria.budgetMin` field), transport mode picker, accommodation
   standard as a visual star-rating card picker (not a `<select>`), luggage/package
-  toggles, optimization priority checkboxes
-- Step 4: read-only review summary, then submit
+  toggles, optimization priority checkboxes — submitting this step runs the
+  search directly (no separate review step)
 
 **Results**: complete trips / transport / accommodation / package tabs
 (`components/results/*`), trip cards with expandable timeline + cost breakdown,
-compare-up-to-3, save-to-localStorage (`lib/storage.ts`). "Complete trips"
-isn't self-organized-combos-only — within-budget package holidays are
-merged in too (`kind: "package"` trip options, see the 2026-08-02 dated
-note), so a package can win "AI recommended"/"Cheapest"/"Fastest" the same
-as a flight+hotel combo. The Packages tab itself still lists every real
-result found regardless of budget.
+save-to-localStorage (`lib/storage.ts`). Trip-comparison ("Compare"
+toggle + floating bar) is currently hidden — see the 2026-08-03 "Compare
+feature hidden, not removed" dated note above; the underlying plumbing
+is intact, just not rendered. "Complete trips" isn't self-organized-combos-only
+— within-budget package holidays are merged in too (`kind: "package"`
+trip options, see the 2026-08-02 dated note), so a package can win "AI
+recommended"/"Cheapest"/"Fastest" the same as a flight+hotel combo. The
+Packages tab itself still lists every real result found regardless of
+budget.
 
-**Optimizer**: `OptimizerPanel` (weight sliders, comparison-scenario cards,
-score explanation) lives as a sticky **left sidebar** (`lg:grid-cols-[400px_minmax(0,1fr)]`
-in `app/page.tsx`, `lg:sticky lg:top-6` on the panel) that stays in view while
-the results list scrolls beside it — its internal layout was flattened to a
-single column since it now always renders in a fixed 400px rail, not a
-full-width block. Re-scoring happens client-side instantly (`lib/scoring.ts`).
-The "Trip Optimizer agent" AI review (`components/optimizer/OptimizerAgentReview.tsx`)
-sits at the top of the right/main column, collapsed to a one-line bar by
-default (icon + truncated headline + status pill + "Review updated ranking"
-button when changes are pending) — click the row to expand the full
-narrative. It calls the real OpenRouter-backed API on demand and, as of
-2026-08-01, **its ranking is authoritative**: `applyAgentRanking()`
+**Optimizer**: `OptimizerPanel` (five Low/Balanced/High priority controls,
+a live weighted score, a real per-factor score breakdown for the
+recommended trip, and — only when a priority change actually maps onto
+the agent's real weight axes — a centered "Review updated ranking"
+button under "Reset to defaults") lives as a sticky **left sidebar**
+(`lg:grid-cols-[400px_minmax(0,1fr)]` in `app/page.tsx`, `lg:sticky lg:top-6`
+on the panel — this grid is now always exactly two tracks, see the
+2026-08-03 "Agent content moved to a fixed right rail" dated note above
+for why). Re-scoring happens client-side instantly (`lib/scoring.ts`).
+The "Trip Optimizer agent" AI review
+(`components/optimizer/OptimizerAgentReview.tsx`) no longer sits in the
+center column — as of the same dated note, it renders together with the
+agent's data-gap notes in a `position: fixed` right rail (`2xl:` and up
+only) that doesn't participate in the grid's width accounting, so it
+never shrinks the center column. Collapsed to a one-line bar by default
+(icon + truncated headline + status pill) — click the row to expand the
+full narrative. It calls the real OpenRouter-backed API on demand and, as
+of 2026-08-01, **its ranking is authoritative**: `applyAgentRanking()`
 (`lib/scoring.ts`) reorders the displayed trip list by the agent's
 response, and the "AI recommended" tile/badge reflects its actual top
 pick — see the dated note below for how this used to be pure decoration.
@@ -1118,17 +1326,24 @@ Full variable list with defaults: `.env.example`.
 
 These are independent enough to hand to separate sessions:
 
-0. **Double-connected transport** (both origin and destination lack an
+0. **Trip comparison feature** — currently hidden (`COMPARE_FEATURE_ENABLED
+   = false` in `components/results/helpers.ts`), not deleted. See the
+   2026-08-03 dated note above for exactly what's gated vs. still wired.
+   To actually finish this rather than just re-enable a dead end: build a
+   real side-by-side comparison view and wire it to `CompareBar`'s
+   `onCompare` (currently `onCompareSelected`, never connected to anything
+   in `app/page.tsx`), then flip the flag back to `true`.
+1. **Double-connected transport** (both origin and destination lack an
    airport) isn't implemented — see the known-gaps bullet above. Would need
    combining an origin-side candidate with a destination-side candidate
    (3×3 combinations) and deciding how far to bound the resulting API-call
    count.
-1. **Hotelbeds destination coverage** — Hotelbeds is verified working, but
+2. **Hotelbeds destination coverage** — Hotelbeds is verified working, but
    only Barcelona has a `hotelbedsDestinationCode` hint. Look up and add
    codes for other frequently-searched cities in
    `TRIPWEAVER_LOCATION_HINTS_JSON` so they get real Hotelbeds results too,
    on top of what SerpApi already covers for any destination.
-2. **Package holidays** — three candidates researched live 2026-08-01.
+3. **Package holidays** — three candidates researched live 2026-08-01.
    **Candidate B (Apify) is now implemented and verified working
    end-to-end** — see below. A and C remain not-implemented, blocked on
    the user's own account/business-contact steps (account creation isn't
@@ -1244,9 +1459,9 @@ These are independent enough to hand to separate sessions:
    risk, not a duplicate. C (Duffel Stays) needs a sales contact first,
    remains the lowest priority — and remember it's an *accommodation*
    source, not a packages one, if it ever gets unlocked.
-3. **Testing** — add a test runner and at least cover `lib/adapters/*` and
+4. **Testing** — add a test runner and at least cover `lib/adapters/*` and
    `lib/scoring.ts` (pure functions, easy to unit test) plus a basic e2e smoke
    test of the search flow.
-4. **Mobile QA pass** — click through the full flow at mobile viewport widths,
+5. **Mobile QA pass** — click through the full flow at mobile viewport widths,
    fix what's broken.
-5. **Dependency hygiene** — `npm audit fix`, address the Node engine warning.
+6. **Dependency hygiene** — `npm audit fix`, address the Node engine warning.

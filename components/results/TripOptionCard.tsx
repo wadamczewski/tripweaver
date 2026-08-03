@@ -22,6 +22,7 @@ import type { TripOption } from "@/lib/types";
 import { CostBreakdown } from "./CostBreakdown";
 import { Timeline } from "./Timeline";
 import {
+  COMPARE_FEATURE_ENABLED,
   formatCarbon,
   formatClock,
   formatDuration,
@@ -116,22 +117,24 @@ export function TripOptionCard({
               >
                 <Heart className={clsx("h-4 w-4", isSaved && "fill-current")} aria-hidden="true" />
               </button>
-              <button
-                type="button"
-                className={clsx(
-                  "inline-flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold transition",
-                  isCompared
-                    ? "border-sage/30 bg-sage/10 text-sageDark"
-                    : "border-line bg-paper text-ink/65 hover:border-sage/30 hover:text-sageDark",
-                  compareDisabled && !isCompared && "cursor-not-allowed opacity-45 hover:border-line hover:text-ink/65"
-                )}
-                aria-pressed={isCompared}
-                disabled={compareDisabled && !isCompared}
-                onClick={() => onToggleCompare?.(option)}
-              >
-                <Scale className="h-4 w-4" aria-hidden="true" />
-                {isCompared ? "Compared" : "Compare"}
-              </button>
+              {COMPARE_FEATURE_ENABLED ? (
+                <button
+                  type="button"
+                  className={clsx(
+                    "inline-flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold transition",
+                    isCompared
+                      ? "border-sage/30 bg-sage/10 text-sageDark"
+                      : "border-line bg-paper text-ink/65 hover:border-sage/30 hover:text-sageDark",
+                    compareDisabled && !isCompared && "cursor-not-allowed opacity-45 hover:border-line hover:text-ink/65"
+                  )}
+                  aria-pressed={isCompared}
+                  disabled={compareDisabled && !isCompared}
+                  onClick={() => onToggleCompare?.(option)}
+                >
+                  <Scale className="h-4 w-4" aria-hidden="true" />
+                  {isCompared ? "Compared" : "Compare"}
+                </button>
+              ) : null}
             </div>
           </div>
 

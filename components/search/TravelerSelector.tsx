@@ -81,24 +81,34 @@ export function TravelerSelector({ travelers, onTravelersChange, className }: Tr
         </span>
       </div>
 
-      <div className="divide-y divide-line overflow-hidden rounded-xl border border-line">
-        <StepperRow
-          label="Adults"
-          value={travelers.adults}
-          min={1}
-          max={9}
-          onChange={(value) => commit({ adults: value })}
-        />
+      <div className="grid grid-cols-2 items-start gap-2">
+        <div className="overflow-hidden rounded-xl border border-line">
+          <StepperRow
+            label="Adults"
+            value={travelers.adults}
+            min={1}
+            max={9}
+            onChange={(value) => commit({ adults: value })}
+          />
+        </div>
+        <div className="overflow-hidden rounded-xl border border-line">
+          <StepperRow label="Children" value={travelers.children} min={0} max={6} onChange={setChildCount} />
+        </div>
+        <div className="overflow-hidden rounded-xl border border-line">
+          <StepperRow label="Infants" value={travelers.infants} min={0} max={4} onChange={setInfantCount} />
+        </div>
 
-        <StepperRow label="Children" value={travelers.children} min={0} max={6} onChange={setChildCount} />
         {childAges.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 bg-paper/70 px-3 py-2.5">
+          <div className="space-y-1.5 rounded-xl border border-line bg-paper/70 px-3 py-2.5">
             <span className="flex items-center gap-1 text-xs font-semibold text-ink/55">
               <UsersRound className="h-3.5 w-3.5 text-sage" aria-hidden="true" />
               Ages
             </span>
             {childAges.map((age, index) => (
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-ink" key={`child-age-${index}`}>
+              <label
+                className="flex items-center justify-between gap-2 text-xs font-semibold text-ink"
+                key={`child-age-${index}`}
+              >
                 <span className="text-ink/50">Child {index + 1}</span>
                 <select
                   className="h-8 rounded-lg border border-line bg-white px-2 text-xs font-semibold text-ink shadow-sm transition focus:border-accent focus:outline-none"
@@ -119,47 +129,46 @@ export function TravelerSelector({ travelers, onTravelersChange, className }: Tr
             ))}
           </div>
         ) : null}
-
-        <StepperRow label="Infants" value={travelers.infants} min={0} max={4} onChange={setInfantCount} />
-        {infantAges.length > 0 ? (
-          <div className="space-y-2 bg-paper/70 px-3 py-2.5">
-            {infantAges.map((age, index) => (
-              <div className="flex flex-wrap items-center gap-2" key={`infant-${index}`}>
-                <span className="flex items-center gap-1 text-xs font-semibold text-ink/50">
-                  <Baby className="h-3.5 w-3.5 text-sage" aria-hidden="true" />
-                  Infant {index + 1}
-                </span>
-                <select
-                  className="h-8 rounded-lg border border-line bg-white px-2 text-xs font-semibold text-ink shadow-sm transition focus:border-accent focus:outline-none"
-                  value={age}
-                  onChange={(event) => {
-                    const nextAges = [...infantAges];
-                    nextAges[index] = Number(event.target.value);
-                    commit({ infantAges: nextAges });
-                  }}
-                >
-                  {INFANT_AGES.map((infantAge) => (
-                    <option value={infantAge} key={infantAge}>
-                      {infantAge === 0 ? "Under 1y" : "1y"}
-                    </option>
-                  ))}
-                </select>
-                <CompactToggle
-                  icon={<Armchair className="h-3.5 w-3.5" aria-hidden="true" />}
-                  label="Separate seat"
-                  helper="If off, the infant travels on an adult's lap where the provider allows it, usually at a lower fare"
-                  checked={infantSeats[index] ?? false}
-                  onChange={(checked) => {
-                    const nextSeats = resizeInfantSeatFlags(infantSeats, infantAges.length);
-                    nextSeats[index] = checked;
-                    commit({ infantSeats: nextSeats });
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        ) : null}
       </div>
+
+      {infantAges.length > 0 ? (
+        <div className="space-y-2 rounded-xl border border-line bg-paper/70 px-3 py-2.5">
+          {infantAges.map((age, index) => (
+            <div className="flex flex-wrap items-center gap-2" key={`infant-${index}`}>
+              <span className="flex items-center gap-1 text-xs font-semibold text-ink/50">
+                <Baby className="h-3.5 w-3.5 text-sage" aria-hidden="true" />
+                Infant {index + 1}
+              </span>
+              <select
+                className="h-8 rounded-lg border border-line bg-white px-2 text-xs font-semibold text-ink shadow-sm transition focus:border-accent focus:outline-none"
+                value={age}
+                onChange={(event) => {
+                  const nextAges = [...infantAges];
+                  nextAges[index] = Number(event.target.value);
+                  commit({ infantAges: nextAges });
+                }}
+              >
+                {INFANT_AGES.map((infantAge) => (
+                  <option value={infantAge} key={infantAge}>
+                    {infantAge === 0 ? "Under 1y" : "1y"}
+                  </option>
+                ))}
+              </select>
+              <CompactToggle
+                icon={<Armchair className="h-3.5 w-3.5" aria-hidden="true" />}
+                label="Separate seat"
+                helper="If off, the infant travels on an adult's lap where the provider allows it, usually at a lower fare"
+                checked={infantSeats[index] ?? false}
+                onChange={(checked) => {
+                  const nextSeats = resizeInfantSeatFlags(infantSeats, infantAges.length);
+                  nextSeats[index] = checked;
+                  commit({ infantSeats: nextSeats });
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <SwitchRow

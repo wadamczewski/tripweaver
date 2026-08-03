@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   Compass,
@@ -14,6 +14,7 @@ import { SearchPanel } from "@/components/search/SearchPanel";
 import { OptimizerPanel } from "@/components/optimizer/OptimizerPanel";
 import { ResultsTabs } from "@/components/results/ResultsTabs";
 import { OptimizerAgentReview } from "@/components/optimizer/OptimizerAgentReview";
+import type { OptimizerAgentReviewHandle } from "@/components/optimizer/OptimizerAgentReview";
 import { formatMoney } from "@/lib/currency";
 import { DEFAULT_SEARCH, DEFAULT_WEIGHTS, summarizeTravelers } from "@/lib/defaults";
 import { applyAgentRanking, scoreTripOptions } from "@/lib/scoring";
@@ -53,6 +54,8 @@ export default function Home() {
   const [status, setStatus] = useState<SearchState>("idle");
   const [isPackagesPending, setIsPackagesPending] = useState(false);
   const [isAgentReviewing, setIsAgentReviewing] = useState(false);
+  const [agentHasChanges, setAgentHasChanges] = useState(false);
+  const agentReviewRef = useRef<OptimizerAgentReviewHandle>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [savedTrips, setSavedTrips] = useState<TripOption[]>([]);
@@ -107,6 +110,12 @@ export default function Home() {
 
   const featuredTrip = scoredResults?.tripOptions[0];
   const comparedTrips = scoredResults?.tripOptions.filter((trip) => compareIds.includes(trip.id)) ?? [];
+  // The agent's caveats/data-gap notes (e.g. "ranked list truncated",
+  // "confirm child pricing with the provider") — shown in a sticky right
+  // rail instead of inline in the review card, so they stay visible without
+  // pushing the card's actual recommendation down the page or scrolling
+  // away with it.
+  const agentNotes = realResults?.optimizerReview?.warnings ?? [];
   const { images: destinationImages, activeIndex: destinationImageIndex } = useDestinationImages(
     criteria.destination
   );
@@ -287,8 +296,8 @@ export default function Home() {
           </header>
 
           <div className="relative z-10 mx-auto max-w-7xl px-4 pb-9 pt-2 sm:px-6 lg:px-8">
-            <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
-              Build your dream trip, one decision at a time.
+            <h1 className="text-2xl font-semibold leading-[1.08] tracking-tight sm:text-3xl lg:text-4xl">
+              Build your dream trip, in two simple steps.
             </h1>
 
             <div className="mt-6">
@@ -307,7 +316,13 @@ export default function Home() {
       )}
 
       <section className={`relative px-4 py-10 sm:px-6 lg:px-8 ${status === "ready" ? "min-h-screen" : ""}`}>
-        <div className="relative z-10 mx-auto max-w-7xl">
+        {/* Wider than the hero/wizard's max-w-7xl specifically while
+            results are showing — a real 3-column grid (left panel + center
+            results + right agent rail) needs more horizontal room than the
+            2-column wizard layout does; without this the third column would
+            have to steal width from the center one on any screen narrower
+            than ~1800px, which is exactly what widening this avoids. */}
+        <div className={`relative z-10 mx-auto ${status === "ready" ? "max-w-[1800px]" : "max-w-7xl"}`}>
           {status === "error" && (
             <div className="animate-scale-in rounded-[2rem] border border-accent/30 bg-accent/5 p-8">
               <h2 className="text-xl font-semibold">Something needs a second pass</h2>
@@ -316,13 +331,16 @@ export default function Home() {
           )}
 
           {status === "ready" && scoredResults && realResults && (
-            <div className="grid animate-fade-up grid-cols-1 gap-6 lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start">
+            <div className="grid animate-fade-up grid-cols-1 gap-6 lg:grid-cols-[400px_minmax(0,1fr)_320px] lg:items-start">
               <OptimizerPanel
                 className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto"
                 weights={weights}
                 onChange={setWeights}
                 featuredTrip={featuredTrip}
                 comparedTrips={comparedTrips}
+                hasChanges={agentHasChanges}
+                isReviewing={isAgentReviewing}
+                onRequestReview={() => agentReviewRef.current?.requestReview()}
               />
               <div className="min-w-0 space-y-6">
                 {!featuredTrip && (
@@ -333,20 +351,6 @@ export default function Home() {
                       realResults.packageOptions.length > 0
                     }
                     providerStatuses={realResults.providerStatuses}
-                  />
-                )}
-                {featuredTrip && (
-                  <OptimizerAgentReview
-                    criteria={toTripSearchCriteria(submittedCriteria)}
-                    transportOptions={realResults.transportOptions}
-                    accommodationOptions={realResults.accommodationOptions}
-                    tripOptions={realResults.tripOptions}
-                    packageOptions={realResults.packageOptions}
-                    weights={toRealWeights(weights, submittedCriteria.checkedLuggage)}
-                    recommendedTrip={featuredTrip}
-                    initialReview={realResults.optimizerReview}
-                    onReview={handleAgentReview}
-                    onReviewingChange={setIsAgentReviewing}
                   />
                 )}
                 <ResultsTabs
@@ -360,11 +364,58 @@ export default function Home() {
                   onRemoveSaved={handleRemoveSaved}
                 />
               </div>
+              <div className="min-w-0 space-y-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+                {featuredTrip && (
+                  <OptimizerAgentReview
+                    ref={agentReviewRef}
+                    criteria={toTripSearchCriteria(submittedCriteria)}
+                    transportOptions={realResults.transportOptions}
+                    accommodationOptions={realResults.accommodationOptions}
+                    tripOptions={realResults.tripOptions}
+                    packageOptions={realResults.packageOptions}
+                    weights={toRealWeights(weights, submittedCriteria.checkedLuggage)}
+                    recommendedTrip={featuredTrip}
+                    initialReview={realResults.optimizerReview}
+                    onReview={handleAgentReview}
+                    onReviewingChange={setIsAgentReviewing}
+                    onHasChangesChange={setAgentHasChanges}
+                  />
+                )}
+                {agentNotes.length > 0 && (
+                  <AgentNotesPanel notes={agentNotes} isUpdating={isAgentReviewing} />
+                )}
+              </div>
             </div>
           )}
         </div>
       </section>
     </main>
+  );
+}
+
+function AgentNotesPanel({
+  notes,
+  isUpdating,
+  className = ""
+}: {
+  notes: string[];
+  isUpdating: boolean;
+  className?: string;
+}) {
+  return (
+    <aside className={`animate-scale-in rounded-2xl border border-line bg-white/90 p-4 shadow-soft ${className}`}>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">Agent notes</h3>
+        {isUpdating && <span className="text-xs font-medium text-ink/45">Updating…</span>}
+      </div>
+      <div className={`mt-3 space-y-3 ${isUpdating ? "opacity-50" : ""}`}>
+        {notes.map((note) => (
+          <p key={note} className="rounded-md bg-accent/10 p-3 text-sm leading-6 text-accentDark">
+            {note}
+          </p>
+        ))}
+      </div>
+    </aside>
   );
 }
 

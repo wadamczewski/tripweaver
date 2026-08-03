@@ -21,7 +21,13 @@ import { InfiniteScrollFooter } from "./InfiniteScrollFooter";
 import { PackageHolidayList } from "./PackageHolidayList";
 import { TransportOptionList } from "./TransportOptionList";
 import { TripOptionCard } from "./TripOptionCard";
-import { RESULTS_TABS, buildRecommendationBadges, getRecommendationTiles, getResultsCounts } from "./helpers";
+import {
+  COMPARE_FEATURE_ENABLED,
+  RESULTS_TABS,
+  buildRecommendationBadges,
+  getRecommendationTiles,
+  getResultsCounts
+} from "./helpers";
 import type { ProviderActionPayload, ProviderStatus, ResultsTabId, SaveTarget } from "./types";
 
 const TRIP_PAGE_SIZE = 20;
@@ -284,13 +290,15 @@ export function ResultsTabs({
             <EmptyState title="No complete trips" body="The provider estimates did not return a combined option yet." />
           )}
 
-          <CompareBar
-            selectedOptions={comparedOptions}
-            maxOptions={maxComparedOptions}
-            onRemove={removeCompared}
-            onClear={clearCompared}
-            onCompare={onCompareSelected}
-          />
+          {COMPARE_FEATURE_ENABLED ? (
+            <CompareBar
+              selectedOptions={comparedOptions}
+              maxOptions={maxComparedOptions}
+              onRemove={removeCompared}
+              onClear={clearCompared}
+              onCompare={onCompareSelected}
+            />
+          ) : null}
         </div>
       ) : null}
 

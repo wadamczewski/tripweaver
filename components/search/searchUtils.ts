@@ -91,14 +91,6 @@ export function buildTravelerGroup(options: {
   });
 }
 
-export function roomAffectingTravelerShapeChanged(previous: TravelerGroup, next: TravelerGroup): boolean {
-  return (
-    previous.adults !== next.adults ||
-    joinAges(travelerAges(previous, "child")) !== joinAges(travelerAges(next, "child")) ||
-    joinAges(travelerAges(previous, "infant")) !== joinAges(travelerAges(next, "infant"))
-  );
-}
-
 export function buildRoomsForTravelers(group: TravelerGroup): RoomOccupancy[] {
   const childAges = travelerAges(group, "child");
   const infantAges = travelerAges(group, "infant");
@@ -181,9 +173,5 @@ function distributeAges(rooms: RoomOccupancy[], ages: number[], field: "childAge
     const room = rooms.find((candidate) => roomTravelerTotal(candidate) < 5) ?? rooms[rooms.length - 1];
     room[field] = [...room[field], age];
   });
-}
-
-function joinAges(ages: number[]): string {
-  return ages.join("|");
 }
 

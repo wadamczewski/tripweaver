@@ -13,6 +13,17 @@ import type {
 } from "@/lib/types";
 import type { ProviderActionPayload, RecommendationBadge } from "./types";
 
+// Hidden 2026-08-03 per user request — "Compare selected" was already a
+// dead end (no onCompareSelected handler wired up in app/page.tsx, so the
+// button did nothing) and the per-card Compare toggle/floating bar added
+// visual clutter for an incomplete feature. Underlying plumbing
+// (compareIds state in app/page.tsx, ResultsTabs' onToggleCompare/
+// onCompare/onRemoveCompared/onClearCompare, CompareBar.tsx) is left
+// intact, just not rendered — flip this back to true once a real
+// side-by-side comparison view exists. See PROJECT_STATUS.md's "Where to
+// pick up work" for the follow-up note.
+export const COMPARE_FEATURE_ENABLED = false;
+
 export const RESULTS_TABS = [
   { id: "complete", label: "Complete trips" },
   { id: "transport", label: "Transport" },

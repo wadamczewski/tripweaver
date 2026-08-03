@@ -1,12 +1,12 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronDown, ExternalLink, Loader2, RefreshCcw, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import styles from "./OptimizerAgentReview.module.css";
 import type {
   AccommodationOffer,
-  OptimizerAgentReview,
+  OptimizerAgentReview as OptimizerAgentReviewData,
   OptimizerWeights,
   PackageOffer,
   TransportOffer,
@@ -41,32 +41,47 @@ type Props = {
   // accommodation, tripOptions) are already in by then, but the agent
   // review is fetched separately and arrives later. This component fires
   // that request itself on mount rather than the caller blocking on it.
-  initialReview?: OptimizerAgentReview;
-  onReview?: (review: OptimizerAgentReview) => void;
+  initialReview?: OptimizerAgentReviewData;
+  onReview?: (review: OptimizerAgentReviewData) => void;
   // Lets a parent (e.g. a status strip on the Complete Trips tab) show its
   // own "AI ranking in progress" indicator without duplicating this
   // component's internal isReviewing state.
   onReviewingChange?: (isReviewing: boolean) => void;
+  // Lets a parent render its own "Review updated ranking" trigger
+  // elsewhere in the layout (e.g. next to the weight controls) instead of
+  // duplicating the hasChanges comparison — this component still owns
+  // that state, it just also reports it upward.
+  onHasChangesChange?: (hasChanges: boolean) => void;
+  className?: string;
+};
+
+export type OptimizerAgentReviewHandle = {
+  requestReview: () => void;
 };
 
 function stableJson(value: unknown) {
   return JSON.stringify(value);
 }
 
-export function OptimizerAgentReview({
-  criteria,
-  transportOptions,
-  accommodationOptions,
-  tripOptions,
-  packageOptions,
-  weights,
-  recommendedTrip,
-  initialReview,
-  onReview,
-  onReviewingChange,
-}: Props) {
+export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props>(function OptimizerAgentReviewComponent(
+  {
+    criteria,
+    transportOptions,
+    accommodationOptions,
+    tripOptions,
+    packageOptions,
+    weights,
+    recommendedTrip,
+    initialReview,
+    onReview,
+    onReviewingChange,
+    onHasChangesChange,
+    className,
+  },
+  ref,
+) {
   const [expanded, setExpanded] = useState(false);
-  const [review, setReview] = useState<OptimizerAgentReview | null>(initialReview ?? null);
+  const [review, setReview] = useState<OptimizerAgentReviewData | null>(initialReview ?? null);
   const [reviewedWeights, setReviewedWeights] = useState(() =>
     initialReview ? stableJson(initialReview.appliedWeights) : null,
   );
@@ -92,6 +107,11 @@ export function OptimizerAgentReview({
 
   const currentWeights = useMemo(() => stableJson(weights), [weights]);
   const hasChanges = review !== null && currentWeights !== reviewedWeights;
+
+  useEffect(() => {
+    onHasChangesChange?.(hasChanges);
+  }, [hasChanges, onHasChangesChange]);
+
   const statusLabel = isReviewing ? "Agent working" : hasChanges ? "Changes pending" : "Agent complete";
   const statusBody = isReviewing
     ? review
@@ -122,7 +142,7 @@ export function OptimizerAgentReview({
 
       if (!response.ok) throw new Error("The optimizer review could not be refreshed.");
 
-      const nextReview = (await response.json()) as OptimizerAgentReview;
+      const nextReview = (await response.json()) as OptimizerAgentReviewData;
       setReview(nextReview);
       setReviewedWeights(stableJson(nextReview.appliedWeights));
       // Surface the recommendation as soon as it's ready instead of
@@ -135,6 +155,8 @@ export function OptimizerAgentReview({
       setIsReviewing(false);
     }
   }, [criteria, transportOptions, accommodationOptions, tripOptions, packageOptions, weights, onReview]);
+
+  useImperativeHandle(ref, () => ({ requestReview: () => void requestReview() }), [requestReview]);
 
   // No review yet for the current options (fresh search, or tripOptions
   // changed under us) — request one automatically instead of waiting for the
@@ -173,7 +195,7 @@ export function OptimizerAgentReview({
   }, [packageOptions, isReviewing, review, requestReview]);
 
   return (
-    <section className={styles.review} aria-live="polite" data-expanded={expanded}>
+    <section className={clsx(styles.review, className)} aria-live="polite" data-expanded={expanded}>
       <div className={styles.headerRow}>
         <button
           type="button"
@@ -194,13 +216,6 @@ export function OptimizerAgentReview({
           </span>
           <ChevronDown size={18} className={styles.chevronIcon} aria-hidden="true" />
         </button>
-
-        {hasChanges ? (
-          <button className={styles.button} type="button" onClick={requestReview} disabled={isReviewing}>
-            <RefreshCcw size={18} aria-hidden="true" />
-            {isReviewing ? "Reviewing..." : "Review updated ranking"}
-          </button>
-        ) : null}
       </div>
 
       {expanded ? (
@@ -287,16 +302,6 @@ export function OptimizerAgentReview({
                       ))}
                     </section>
                   ) : null}
-
-                  {review.warnings.length > 0 ? (
-                    <section className="mt-4 rounded-md bg-accent/10 p-3">
-                      {review.warnings.map((warning) => (
-                        <p key={warning} className="text-sm leading-6 text-accentDark">
-                          {warning}
-                        </p>
-                      ))}
-                    </section>
-                  ) : null}
                 </>
               ) : (
                 <p className={clsx("text-sm text-ink/60", recommendedTrip && "mt-4")}>
@@ -312,4 +317,4 @@ export function OptimizerAgentReview({
       ) : null}
     </section>
   );
-}
+});
