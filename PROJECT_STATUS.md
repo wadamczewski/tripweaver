@@ -770,6 +770,63 @@ column, sourced through the ref. Below `lg:` (1024px), the grid falls
 back to a single column and all three sections stack vertically, same
 as the left column's pre-existing responsive behavior.
 
+**Three-column layout follow-up fixes, agent card simplified, left panel
+trimmed (2026-08-03).** Several rounds of direct user feedback on the
+layout above:
+- **Right column widened 320px → 380px** and its per-card fonts/padding
+  tightened (`OptimizerAgentReview.tsx`/`.module.css`) — the narrow rail
+  was cramping the recommended-trip image/text into an unreadable
+  side-by-side row (fixed viewport-based `sm:` breakpoint classes don't
+  respect an actual column's width); the image now always stacks above
+  the text instead.
+- **`OptimizerAgentReview` is now always expanded** — the collapse/expand
+  toggle was removed entirely (no more click-to-fold), since the
+  recommendation is the point of the card and folding it away by
+  accident wasn't useful. The header is now a static `<div>`, not a
+  `<button>`.
+- **A short glow animation plays on the agent card the moment a review
+  finishes** (first pass or a re-review after a weight change): 5 pulses
+  of 1.5s each (7.5s total) via a `data-glow` attribute + CSS
+  `@keyframes`, guarded so it only fires on a genuine successful
+  completion (`isReviewing` true→false with no error **and** a real
+  `review` present — an early version could glow on a failed request if
+  `isReviewing` flickered without ever setting `review`). Respects
+  `prefers-reduced-motion` (static ring instead of animating).
+- **Right column's internal scrollbar was removed, then restored** —
+  first removed (`overflow-y-auto`/`max-h` dropped) so a nested scrollbar
+  wouldn't feel "awful" inside a sticky rail; once the card was made
+  permanently expanded, its content reliably exceeds viewport height, so
+  the scrollbar came back (`lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto`)
+  — needed now specifically because content no longer collapses.
+- **Left column (`OptimizerPanel`) priority rows switched from a single
+  stacked column to a `grid-cols-2` layout**, with tighter padding/icon
+  sizes per row — roughly halves the vertical space the 5 priorities
+  take, so "Reset to defaults" / "Review updated ranking" don't get
+  pushed below the fold.
+- **The entire "How the recommended trip scores" section (score-driver
+  bars, "Why this trip", "Worth checking") was removed from the left
+  column** per explicit user request ("I do not find it useful"), along
+  with its supporting logic: `buildScoreDrivers`, `ScoreDriver`,
+  `inverseRangeScore`, `clampScore`, `isTripOption`, the
+  `candidatePool`/`comparedTrips` plumbing, and the now-dead
+  `selectedTrip` prop (it was never actually passed from `app/page.tsx`
+  anyway). The panel's top "X/100" score badge still works — it was
+  quietly recomputing its own weighted score from a narrow
+  `[activeTrip, ...comparedTrips]` pool (degenerate anyway since Compare
+  is hidden — see the 2026-08-03 Compare note above), so it now just
+  reads `featuredTrip.score`, the same real score already computed by
+  `lib/scoring.ts` and shown everywhere else (trip cards, the agent
+  card). More consistent, not just smaller.
+- **Results page fixes**: removed the redundant `<h1>Results</h1>` above
+  the tabs; the tab row (`Complete trips`/`Transport`/`Accommodation`/
+  `Package holidays`) no longer scrolls horizontally — switched from
+  `overflow-x-auto` to `flex-wrap` with `flex-1` tabs, so they either
+  fit one row or wrap to a second instead of clipping/scrolling; and
+  `app/page.tsx` now scrolls the window to the top whenever `status`
+  becomes `"ready"`, since the results grid replaces the wizard in place
+  and would otherwise inherit whatever scroll position the wizard was
+  left at, hiding the tabs and recommendation tiles below the fold.
+
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:
 1. Token permissions — the original token lacked `air.offer_requests.create`;

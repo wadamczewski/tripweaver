@@ -81,6 +81,17 @@ export default function Home() {
     );
   }, [nearestCity]);
 
+  // The results grid replaces the search wizard in place (same page, no
+  // navigation) — without this, whatever scroll position the wizard was at
+  // (e.g. scrolled down to reach "Find my trip") carries straight over,
+  // landing the user mid-way down the results instead of at the top of the
+  // center column's tabs.
+  useEffect(() => {
+    if (status === "ready") {
+      window.scrollTo(0, 0);
+    }
+  }, [status]);
+
   // Transport/accommodation land fast (a couple of seconds); packages and
   // the optimizer review are fetched separately and merged in as they
   // resolve (see handleSearch/loadPackages) — this recomputes automatically
@@ -109,7 +120,6 @@ export default function Home() {
   }, [results, weights, realResults?.optimizerReview]);
 
   const featuredTrip = scoredResults?.tripOptions[0];
-  const comparedTrips = scoredResults?.tripOptions.filter((trip) => compareIds.includes(trip.id)) ?? [];
   // The agent's caveats/data-gap notes (e.g. "ranked list truncated",
   // "confirm child pricing with the provider") — shown in a sticky right
   // rail instead of inline in the review card, so they stay visible without
@@ -331,13 +341,12 @@ export default function Home() {
           )}
 
           {status === "ready" && scoredResults && realResults && (
-            <div className="grid animate-fade-up grid-cols-1 gap-6 lg:grid-cols-[400px_minmax(0,1fr)_320px] lg:items-start">
+            <div className="grid animate-fade-up grid-cols-1 gap-6 lg:grid-cols-[400px_minmax(0,1fr)_380px] lg:items-start">
               <OptimizerPanel
-                className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto"
+                className="lg:sticky lg:top-6"
                 weights={weights}
                 onChange={setWeights}
                 featuredTrip={featuredTrip}
-                comparedTrips={comparedTrips}
                 hasChanges={agentHasChanges}
                 isReviewing={isAgentReviewing}
                 onRequestReview={() => agentReviewRef.current?.requestReview()}
@@ -403,14 +412,14 @@ function AgentNotesPanel({
   className?: string;
 }) {
   return (
-    <aside className={`animate-scale-in rounded-2xl border border-line bg-white/90 p-4 shadow-soft ${className}`}>
+    <aside className={`animate-scale-in rounded-2xl border border-line bg-white/90 p-3 shadow-soft ${className}`}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">Agent notes</h3>
         {isUpdating && <span className="text-xs font-medium text-ink/45">Updating…</span>}
       </div>
-      <div className={`mt-3 space-y-3 ${isUpdating ? "opacity-50" : ""}`}>
+      <div className={`mt-2 space-y-2 ${isUpdating ? "opacity-50" : ""}`}>
         {notes.map((note) => (
-          <p key={note} className="rounded-md bg-accent/10 p-3 text-sm leading-6 text-accentDark">
+          <p key={note} className="rounded-md bg-accent/10 p-2.5 text-xs leading-5 text-accentDark">
             {note}
           </p>
         ))}

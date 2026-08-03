@@ -181,14 +181,10 @@ export function ResultsTabs({
 
   return (
     <section className={clsx("w-full", className)}>
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold tracking-normal text-white sm:text-4xl">Results</h1>
-      </header>
-
       {providerStatuses.length > 0 ? <ProviderStatusStrip statuses={providerStatuses} /> : null}
 
-      <nav className="mb-6 overflow-x-auto" aria-label="Result categories">
-        <div className="flex w-full min-w-full gap-2 rounded-lg border border-line bg-white p-1 shadow-soft">
+      <nav className="mb-6" aria-label="Result categories">
+        <div className="flex w-full flex-wrap gap-2 rounded-lg border border-line bg-white p-1 shadow-soft">
           {RESULTS_TABS.map((tab) => {
             const isActive = activeTab === tab.id;
 
@@ -197,7 +193,7 @@ export function ResultsTabs({
                 key={tab.id}
                 type="button"
                 className={clsx(
-                  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition duration-200",
+                  "inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold transition duration-200",
                   isActive ? "bg-ink text-white shadow-sm" : "text-ink/60 hover:bg-mist hover:text-ink"
                 )}
                 aria-current={isActive ? "page" : undefined}

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronDown, ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import styles from "./OptimizerAgentReview.module.css";
 import type {
@@ -80,17 +80,34 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
   },
   ref,
 ) {
-  const [expanded, setExpanded] = useState(false);
+  // Always shown expanded — the recommendation is the whole point of this
+  // card, so it should never require a click to reveal.
+  const expanded = true;
   const [review, setReview] = useState<OptimizerAgentReviewData | null>(initialReview ?? null);
   const [reviewedWeights, setReviewedWeights] = useState(() =>
     initialReview ? stableJson(initialReview.appliedWeights) : null,
   );
   const [isReviewing, setIsReviewing] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  // Briefly glows the whole card the moment a review finishes (first pass
+  // or a re-review after a weight change) so the result is noticeable
+  // without the user having to notice a small status pill changed color.
+  const [justCompleted, setJustCompleted] = useState(false);
+  const wasReviewingRef = useRef(false);
 
   useEffect(() => {
     onReviewingChange?.(isReviewing);
   }, [isReviewing, onReviewingChange]);
+
+  useEffect(() => {
+    const wasReviewing = wasReviewingRef.current;
+    wasReviewingRef.current = isReviewing;
+    if (!wasReviewing || isReviewing || error || !review) return;
+
+    setJustCompleted(true);
+    const timeout = setTimeout(() => setJustCompleted(false), 7500);
+    return () => clearTimeout(timeout);
+  }, [isReviewing, error, review]);
 
   // A new search produces a brand-new initialReview (different generatedAt)
   // without remounting this component — resync local state so a second
@@ -145,9 +162,6 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
       const nextReview = (await response.json()) as OptimizerAgentReviewData;
       setReview(nextReview);
       setReviewedWeights(stableJson(nextReview.appliedWeights));
-      // Surface the recommendation as soon as it's ready instead of
-      // leaving it collapsed for the user to notice on their own.
-      setExpanded(true);
       onReview?.(nextReview);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "The optimizer review could not be refreshed.");
@@ -195,27 +209,18 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
   }, [packageOptions, isReviewing, review, requestReview]);
 
   return (
-    <section className={clsx(styles.review, className)} aria-live="polite" data-expanded={expanded}>
+    <section className={clsx(styles.review, className)} aria-live="polite" data-glow={justCompleted}>
       <div className={styles.headerRow}>
-        <button
-          type="button"
-          className={styles.toggle}
-          onClick={() => setExpanded((current) => !current)}
-          aria-expanded={expanded}
-        >
+        <div className={styles.toggle}>
           <span className={styles.eyebrow}>
             <Sparkles size={18} aria-hidden="true" />
             Trip Optimizer agent
           </span>
-          {!expanded ? (
-            <span className={styles.inlineHeadline}>{review ? review.headline : "Ranking your results…"}</span>
-          ) : null}
           <span className={styles.status} data-state={isReviewing ? "working" : hasChanges ? "pending" : "complete"}>
             <span className={styles.statusDot} aria-hidden="true" />
             {statusLabel}
           </span>
-          <ChevronDown size={18} className={styles.chevronIcon} aria-hidden="true" />
-        </button>
+        </div>
       </div>
 
       {expanded ? (
@@ -234,21 +239,21 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
               </div>
             ) : null}
 
-            <div className={clsx("p-4", isReviewing && "pointer-events-none select-none blur-sm")}>
+            <div className={clsx("p-3", isReviewing && "pointer-events-none select-none blur-sm")}>
               {recommendedTrip ? (
-                <div className="flex flex-col gap-4 sm:flex-row">
+                <div className="flex flex-col gap-3">
                   {recommendedTrip.accommodation.imageUrl ? (
                     <img
                       src={recommendedTrip.accommodation.imageUrl}
                       alt={recommendedTrip.accommodation.name}
-                      className="h-32 w-full shrink-0 rounded-md object-cover sm:w-40"
+                      className="h-28 w-full shrink-0 rounded-md object-cover"
                     />
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-ink">{recommendedTrip.label}</p>
                     <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-xl font-bold text-ink">{formatMoney(recommendedTrip.totalPrice)}</span>
-                      <span className="text-sm text-ink/60">
+                      <span className="text-lg font-bold text-ink">{formatMoney(recommendedTrip.totalPrice)}</span>
+                      <span className="text-xs text-ink/60">
                         {formatMoney(recommendedTrip.pricePerPerson)} per person
                       </span>
                     </div>
@@ -265,17 +270,17 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
 
               {review ? (
                 <>
-                  <section className={recommendedTrip ? "mt-4" : undefined}>
+                  <section className={recommendedTrip ? "mt-3" : undefined}>
                     <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">Why this trip</h4>
-                    <p className="mt-1 text-sm leading-6 text-ink/75">{review.summary}</p>
+                    <p className="mt-1 text-sm leading-5 text-ink/75">{review.summary}</p>
                   </section>
 
                   {review.tradeoffs.length > 0 ? (
-                    <section className="mt-4">
+                    <section className="mt-3">
                       <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">Trade-offs</h4>
                       <ul className="mt-1 space-y-1">
                         {review.tradeoffs.map((tradeoff) => (
-                          <li key={tradeoff} className="flex gap-2 text-sm leading-6 text-ink/75">
+                          <li key={tradeoff} className="flex gap-2 text-sm leading-5 text-ink/75">
                             <span className="text-ink/40" aria-hidden="true">
                               •
                             </span>
@@ -287,7 +292,7 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
                   ) : null}
 
                   {providerActions.length > 0 ? (
-                    <section className="mt-4 flex flex-wrap gap-2">
+                    <section className="mt-3 flex flex-wrap gap-2">
                       {providerActions.map((action) => (
                         <a
                           key={action.id}
@@ -304,7 +309,7 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
                   ) : null}
                 </>
               ) : (
-                <p className={clsx("text-sm text-ink/60", recommendedTrip && "mt-4")}>
+                <p className={clsx("text-sm text-ink/60", recommendedTrip && "mt-3")}>
                   The agent is reviewing these results — check back shortly.
                 </p>
               )}
