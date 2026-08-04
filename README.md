@@ -4,11 +4,11 @@ A travel-planning web app that lets a family compare flights, stays, and complet
 
 ## Demo
 
-<video src="docs/media/demo.mp4" controls width="720" muted playsinline>
-  Your viewer doesn't render inline video — download it directly: <a href="docs/media/demo.mp4">docs/media/demo.mp4</a>
-</video>
+GitHub doesn't play local video files inline in a README, so click through to watch it:
 
-Search → real results → the Trip Optimizer agent's recommendation, plus a tour of the Accommodation tab's map and per-hotel photo gallery while the agent works. ([direct link](docs/media/demo.mp4) if the player above doesn't load)
+[![Watch the demo](docs/media/demo-thumbnail.png)](docs/media/demo.mp4)
+
+▶️ [**Watch the demo**](docs/media/demo.mp4) — 49s, 2560×1440. Search → real results → the Trip Optimizer agent's recommendation, plus a tour of the Accommodation tab's map and per-hotel photo gallery while the agent works.
 
 📑 [Project presentation (PDF)](docs/media/presentation.pdf)
 
