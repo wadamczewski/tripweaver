@@ -2,6 +2,23 @@
 
 A travel-planning web app that lets a family compare flights, stays, and complete trip totals in one place — built as a hackathon prototype and then wired to real provider APIs.
 
+## Demo
+
+<video src="docs/media/demo.mp4" controls width="720" muted playsinline>
+  Your viewer doesn't render inline video — download it directly: <a href="docs/media/demo.mp4">docs/media/demo.mp4</a>
+</video>
+
+Search → real results → the Trip Optimizer agent's recommendation, plus a tour of the Accommodation tab's map and per-hotel photo gallery while the agent works. ([direct link](docs/media/demo.mp4) if the player above doesn't load)
+
+📑 [Project presentation (PDF)](docs/media/presentation.pdf)
+
+<table>
+  <tr>
+    <td><img src="docs/media/screenshot-search.png" alt="Search wizard — route, dates, travelers, priorities" width="480"><br /><sub>Step 1 — route, dates, travelers, priorities</sub></td>
+    <td><img src="docs/media/screenshot-results.png" alt="Results with the Trip Optimizer agent's recommendation" width="480"><br /><sub>Results — real trip options + the agent's recommendation</sub></td>
+  </tr>
+</table>
+
 ## Run it
 
 ```bash
