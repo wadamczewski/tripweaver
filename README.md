@@ -8,7 +8,7 @@ GitHub doesn't play local video files inline in a README, so click through to wa
 
 [![Watch the demo](docs/media/demo-thumbnail.png)](docs/media/demo.mp4)
 
-▶️ [**Watch the demo**](docs/media/demo.mp4) — 49s, 2560×1440. Search → real results → the Trip Optimizer agent's recommendation, plus a tour of the Accommodation tab's map and per-hotel photo gallery while the agent works.
+▶️ [**Watch the demo**](docs/media/demo.mp4) — 49s, 1920×1080. Search → real results → the Trip Optimizer agent's recommendation, plus a tour of the Accommodation tab's map and per-hotel photo gallery while the agent works.
 
 📑 [Project presentation (PDF)](docs/media/presentation.pdf)
 
