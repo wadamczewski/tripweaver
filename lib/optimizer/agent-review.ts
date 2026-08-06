@@ -1,19 +1,15 @@
 import { convertMoney } from "../providers/fx";
 import type {
-  AccommodationOffer,
   OptimizerAgentReview,
+  OptimizerReviewTripOption,
   OptimizerWeights,
   PackageOffer,
-  TransportOffer,
-  TripOption,
   TripSearchCriteria,
 } from "../trip/types";
 
 type ReviewInput = {
   criteria: TripSearchCriteria;
-  transportOptions: TransportOffer[];
-  accommodationOptions: AccommodationOffer[];
-  tripOptions: TripOption[];
+  tripOptions: OptimizerReviewTripOption[];
   // Bundled tour-operator deals — a genuine alternative to a self-organized
   // tripOption, not a separate category the agent should ignore. Optional
   // so the "Tune the recommendation" re-review call (which predates
@@ -35,7 +31,7 @@ function clamp(value: number, min = 0, max = 1) {
   return Math.max(min, Math.min(max, value));
 }
 
-function fallbackScore(option: TripOption, cheapest: number, fastest: number, weights: OptimizerWeights) {
+function fallbackScore(option: OptimizerReviewTripOption, cheapest: number, fastest: number, weights: OptimizerWeights) {
   const priceScore = cheapest > 0 ? clamp(cheapest / option.totalPrice.amount) : 0.5;
   const speedScore =
     option.transport.durationMinutes && fastest > 0 ? clamp(fastest / option.transport.durationMinutes) : 0.55;

@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
-  Compass,
   Info,
   Loader2,
   Pencil,
   Users,
   WalletCards
 } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import { SearchPanel } from "@/components/search/SearchPanel";
 import { OptimizerPanel } from "@/components/optimizer/OptimizerPanel";
 import { ResultsTabs } from "@/components/results/ResultsTabs";
@@ -297,7 +297,7 @@ export default function Home() {
           <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-ink shadow-soft">
-                <Compass className="h-5 w-5" />
+                <Logo className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-xl font-semibold tracking-tight">TripWeaver</p>
@@ -378,8 +378,6 @@ export default function Home() {
                   <OptimizerAgentReview
                     ref={agentReviewRef}
                     criteria={toTripSearchCriteria(submittedCriteria)}
-                    transportOptions={realResults.transportOptions}
-                    accommodationOptions={realResults.accommodationOptions}
                     tripOptions={realResults.tripOptions}
                     packageOptions={realResults.packageOptions}
                     weights={toRealWeights(weights, submittedCriteria.checkedLuggage)}
@@ -492,7 +490,7 @@ function SearchSummaryBar({
       <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-soft">
-            <Compass className="h-5 w-5" />
+            <Logo className="h-5 w-5" />
           </div>
           <div className="min-w-0">
             <p className="text-lg font-semibold tracking-tight">

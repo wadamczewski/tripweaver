@@ -130,6 +130,35 @@ export type TripOption = {
   score?: number;
 };
 
+// What the Trip Optimizer agent (and its request payload) actually needs
+// per trip combo — a deliberate subset of TripOption's full nested
+// TransportOffer/AccommodationOffer. Those carry a `raw` field (the full
+// provider API response) and, for hotels, up to ~30 image URLs — sending
+// that untrimmed for every combo in a search (hundreds of them) is what
+// pushed the /api/trip-optimizer-review request past Vercel's serverless
+// body size limit (413) despite working fine locally. Keep this in sync
+// with the fields agent-review.ts actually reads.
+export type OptimizerReviewTripOption = {
+  id: string;
+  totalPrice: Money;
+  transport: {
+    providerName: string;
+    title: string;
+    durationMinutes?: number;
+    stops?: number;
+    luggageIncluded?: boolean;
+    operatingCarriers?: string[];
+  };
+  accommodation: {
+    providerName: string;
+    name: string;
+    stars?: number;
+    rating?: number;
+    roomName?: string;
+    cancellationPolicy?: string;
+  };
+};
+
 export type OptimizerWeights = {
   price: number;
   speed: number;

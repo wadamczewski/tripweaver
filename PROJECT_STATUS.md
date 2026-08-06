@@ -1,6 +1,6 @@
 # TripWeaver — Project Status
 
-Last updated: 2026-08-03. This file is meant to give a fresh chat session (or a
+Last updated: 2026-08-06. This file is meant to give a fresh chat session (or a
 different person) full context without re-reading the whole history. Read this
 first before touching code.
 
@@ -826,6 +826,63 @@ layout above:
   becomes `"ready"`, since the results grid replaces the wizard in place
   and would otherwise inherit whatever scroll position the wizard was
   left at, hiding the tabs and recommendation tiles below the fold.
+
+**Deployed to Vercel; fixed a real 413 on `/api/trip-optimizer-review`
+that only showed up in production (2026-08-06).** Deployment itself was
+routine (`vercel link`, pushed all 16 `.env.local` keys to both the
+Production and Preview environments via `vercel env add`, `vercel deploy
+--prod`) — live at `https://tripweaver-nine.vercel.app`. But the first
+live search immediately surfaced a bug invisible in local dev: the agent
+review request failed with a raw `413 EntityTooLarge` from Vercel's
+serverless body-size limit, despite completing fine over Docker/`npm run
+dev` (which has no such cap).
+
+Root cause, found by reading what `lib/optimizer/agent-review.ts`
+actually reads off each request: the client was POSTing the **entire**
+`TripOption[]` array (up to 500+ combos per search) to
+`/api/trip-optimizer-review`, and each `TripOption` embeds a full
+`TransportOffer`/`AccommodationOffer` — including every provider's `raw`
+field (the complete Duffel/Hotelbeds/etc. API response, kept for
+reference) and, per hotel, up to ~30 `imageUrls`. That's real weight,
+multiplied by every combo that hotel appears in. Two real fixes, not a
+raised limit:
+1. `transportOptions`/`accommodationOptions` were in the request
+   payload and the `ReviewInput` type but **never actually read** by
+   `agent-review.ts` (confirmed by grep — zero references) — dead
+   weight from an earlier version of this endpoint. Dropped entirely:
+   from the component's fetch body, its props, `app/page.tsx`'s call
+   site, the route's request type, and `ReviewInput`.
+2. `tripOptions` itself is now trimmed client-side to a new
+   `OptimizerReviewTripOption` type (`lib/trip/types.ts`) — just the
+   handful of fields `fallbackScore`/`reviewPrompt` actually use
+   (`id`, `totalPrice`, and a handful of `transport`/`accommodation`
+   fields) — before it's ever serialized, instead of shipping the full
+   nested offers (with `raw` and `imageUrls`) hundreds of times over.
+
+Verified live end-to-end afterward (not just that it stopped 413ing):
+`vercel logs --follow` while re-running the search, confirmed
+`POST /api/trip-optimizer-review → 200`, and the agent card showed a
+real recommendation with real reasoning ("Direct Duffel flight + 5★
+Eurostars Barcelona Central — best weighted fit") against 217 real trip
+combos. Also re-verified locally afterward — same 200, same real
+ranking — to confirm the trim didn't silently break the heuristic
+fallback score's inputs.
+
+**Real logo + favicon (2026-08-06).** The header badge (both on the
+search wizard and the results-page summary bar) was a generic
+lucide-react `Compass` icon — replaced with a real brand mark:
+`components/ui/Logo.tsx`, a single ribbon folding into a "W" (Weaver),
+terracotta shifting to sage with a gold dot at the peak, echoing the dot
+in the "Trip•Weaver" wordmark used on the poster/deck/video assets.
+Drop-in swap into the same `h-11 w-11` white badge at the same `h-5 w-5`
+size in both places — no layout change. The same mark, rendered on a
+cream square, is now `app/icon.png` (256×256) and `app/apple-icon.png`
+(180×180) — Next.js's file-based metadata convention auto-generates the
+`<link rel="icon">`/`<link rel="apple-touch-icon">` tags for these, no
+`layout.tsx` changes needed. Verified live: both tags present with the
+right hashed URLs, `/icon.png` serves `200 image/png`, and the mark
+reads clearly down to a real 16×16 favicon render, not just at badge
+size.
 
 **Getting Duffel working (2026-07-31) took three separate fixes**, worth knowing
 about if another provider integration hits similar issues:

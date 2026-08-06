@@ -5,11 +5,10 @@ import { ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import styles from "./OptimizerAgentReview.module.css";
 import type {
-  AccommodationOffer,
   OptimizerAgentReview as OptimizerAgentReviewData,
+  OptimizerReviewTripOption,
   OptimizerWeights,
   PackageOffer,
-  TransportOffer,
   TripOption,
   TripSearchCriteria,
 } from "../../lib/trip/types";
@@ -21,8 +20,6 @@ import { formatMoney, getPrimaryTransportLabel, getTripProviderActions } from ".
 
 type Props = {
   criteria: TripSearchCriteria;
-  transportOptions: TransportOffer[];
-  accommodationOptions: AccommodationOffer[];
   tripOptions: TripOption[];
   // Arrives later than everything else (packages can take up to ~2
   // minutes) — starts empty. When it transitions to non-empty, this
@@ -66,8 +63,6 @@ function stableJson(value: unknown) {
 export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props>(function OptimizerAgentReviewComponent(
   {
     criteria,
-    transportOptions,
-    accommodationOptions,
     tripOptions,
     packageOptions,
     weights,
@@ -143,14 +138,41 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
     setError(undefined);
 
     try {
+      // Trim each combo down to just the fields the agent actually reads
+      // before it goes over the wire. The full TripOption embeds a
+      // complete TransportOffer/AccommodationOffer per combo — including
+      // each provider's raw API response and, for hotels, up to ~30 image
+      // URLs — which is fine to hold in memory client-side but far too
+      // heavy to POST hundreds of times over: it's what pushed this
+      // request past Vercel's serverless body size limit (a 413 that only
+      // showed up once deployed, never locally).
+      const slimTripOptions: OptimizerReviewTripOption[] = tripOptions.map((option) => ({
+        id: option.id,
+        totalPrice: option.totalPrice,
+        transport: {
+          providerName: option.transport.providerName,
+          title: option.transport.title,
+          durationMinutes: option.transport.durationMinutes,
+          stops: option.transport.stops,
+          luggageIncluded: option.transport.luggageIncluded,
+          operatingCarriers: option.transport.operatingCarriers,
+        },
+        accommodation: {
+          providerName: option.accommodation.providerName,
+          name: option.accommodation.name,
+          stars: option.accommodation.stars,
+          rating: option.accommodation.rating,
+          roomName: option.accommodation.roomName,
+          cancellationPolicy: option.accommodation.cancellationPolicy,
+        },
+      }));
+
       const response = await fetch("/api/trip-optimizer-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           criteria,
-          transportOptions,
-          accommodationOptions,
-          tripOptions,
+          tripOptions: slimTripOptions,
           packageOptions,
           weights,
           changeReason: "User changed Trip Optimizer settings",
@@ -168,7 +190,7 @@ export const OptimizerAgentReview = forwardRef<OptimizerAgentReviewHandle, Props
     } finally {
       setIsReviewing(false);
     }
-  }, [criteria, transportOptions, accommodationOptions, tripOptions, packageOptions, weights, onReview]);
+  }, [criteria, tripOptions, packageOptions, weights, onReview]);
 
   useImperativeHandle(ref, () => ({ requestReview: () => void requestReview() }), [requestReview]);
 

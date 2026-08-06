@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
 import { reviewTripOptionsWithAgent } from "../../../lib/optimizer/agent-review";
 import type {
-  AccommodationOffer,
+  OptimizerReviewTripOption,
   OptimizerWeights,
   PackageOffer,
-  TransportOffer,
-  TripOption,
   TripSearchCriteria,
 } from "../../../lib/trip/types";
 
 type OptimizerReviewRequest = {
   criteria: TripSearchCriteria;
-  transportOptions: TransportOffer[];
-  accommodationOptions: AccommodationOffer[];
-  tripOptions: TripOption[];
+  tripOptions: OptimizerReviewTripOption[];
   packageOptions?: PackageOffer[];
   weights: OptimizerWeights;
   changeReason?: string;
@@ -23,8 +19,6 @@ export async function POST(request: Request) {
   const body = (await request.json()) as OptimizerReviewRequest;
   const review = await reviewTripOptionsWithAgent({
     criteria: body.criteria,
-    transportOptions: body.transportOptions,
-    accommodationOptions: body.accommodationOptions,
     tripOptions: body.tripOptions,
     packageOptions: body.packageOptions,
     weights: body.weights,
